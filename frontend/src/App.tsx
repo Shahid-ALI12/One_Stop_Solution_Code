@@ -19,6 +19,11 @@ import { apiClient } from './api/client';
 import type { Service, Enquiry, Consultation, Rating, PortfolioItem, TeamMember } from './types';
 import TeamSection from './components/TeamSection';
 
+// Premium UI global wrappers — public site only
+import AuroraBackground from './components/ui/AuroraBackground';
+import CustomCursor from './components/ui/CustomCursor';
+import ScrollProgress from './components/ui/ScrollProgress';
+
 /**
  * SHAPE-ADAPTERS — the existing components expect specific camelCase shapes
  * (e.g. `subServices`, `accentColor`, `imageAsset`). The API client already
@@ -209,6 +214,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-japandi-bg text-japandi-soot antialiased flex flex-col justify-between selection:bg-japandi-earth/15 selection:text-japandi-earth">
+
+      {/* Premium global UI — public site only */}
+      <AuroraBackground />
+      <CustomCursor />
+      <ScrollProgress />
 
       <Navbar
         activeSection={activeSection}
