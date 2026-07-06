@@ -1,5 +1,5 @@
 """
-onestopsolution — FastAPI entry point
+backend — FastAPI entry point
 Run with:  uv run main.py
 """
 import uvicorn
