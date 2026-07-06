@@ -15,7 +15,7 @@ interface TeamMember {
 const TEAM_MEMBERS: TeamMember[] = [
   {
     id: "member-1",
-    name: "Khadim Hussain",
+    name: "Sophia Martinez, CPA",
     role: "Lead Certified Accountant & QBO Pro",
     bio: "Ex-KPMG consultant specializing in comprehensive GAAP auditing, forensic accounting, and complex catch-up bookkeeping reconstruction.",
     avatarUrl: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=300",
@@ -25,7 +25,7 @@ const TEAM_MEMBERS: TeamMember[] = [
   },
   {
     id: "member-2",
-    name: "Ali Raza",
+    name: "Marcus Sterling",
     role: "Director of MS Office & Spreadsheet Automation",
     bio: "VBA Architect who has automated cash flow models and corporate dashboards for over 80 small businesses, saving hundreds of operational hours.",
     avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300",
@@ -35,7 +35,7 @@ const TEAM_MEMBERS: TeamMember[] = [
   },
   {
     id: "member-3",
-    name: "Ayesha Khan",
+    name: "Victoria Thorne",
     role: "Senior Risk Auditor & Administrative Lead",
     bio: "Certified internal control specialist managing security-vetted virtual support structures, operational audits, and corporate NDAs.",
     avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300",
