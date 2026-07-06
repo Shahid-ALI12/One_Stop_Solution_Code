@@ -1,4 +1,4 @@
-# onestopsolution
+# backend
 
 > Scaffolded with uv_init.py | Type: fastapi
 
