@@ -16,13 +16,17 @@ interface ContactSectionProps {
   preSelectedPortfolio: string;
   setPreSelectedService: (service: string) => void;
   setPreSelectedPortfolio: (portfolio: string) => void;
+  onAddEnquiry?: (enquiry: any) => void;
+  onAddConsultation?: (consultation: any) => void;
 }
 
 export default function ContactSection({
   preSelectedService,
   preSelectedPortfolio,
   setPreSelectedService,
-  setPreSelectedPortfolio
+  setPreSelectedPortfolio,
+  onAddEnquiry,
+  onAddConsultation
 }: ContactSectionProps) {
   // Query Form state
   const [contactMethod, setContactMethod] = useState<'email' | 'whatsapp' | 'other'>('email');
@@ -117,15 +121,31 @@ export default function ContactSection({
     e.preventDefault();
     
     if (contactMethod === 'email') {
-      setSubmittedQueryData({
+      const payload = {
         name: emailName,
         email: emailAddr,
         country: emailCountry,
         subject: emailSubject,
         message: emailMsg,
         package: preSelectedService || 'Custom Scope'
-      });
+      };
+      setSubmittedQueryData(payload);
       setIsQuerySubmitted(true);
+
+      if (onAddEnquiry) {
+        onAddEnquiry({
+          id: `q-${Date.now()}`,
+          name: emailName,
+          contactMethod: 'email',
+          contactInfo: emailAddr,
+          subject: emailSubject,
+          message: emailMsg,
+          selectedService: preSelectedService || 'Custom Scope',
+          timestamp: new Date().toISOString(),
+          isAnswered: false,
+          timezone: emailCountry || 'Global Market'
+        });
+      }
 
       // Clear fields
       setEmailName('');
@@ -169,6 +189,20 @@ export default function ContactSection({
       localTime: `${localFormatted} (${visitorTimeZone})`,
       pktTime: pktTimeStr
     });
+
+    if (onAddConsultation) {
+      onAddConsultation({
+        id: `c-${Date.now()}`,
+        name: bookName,
+        email: bookEmail,
+        country: bookCountry || 'Global Partner',
+        selectedDateTime: `${localFormatted} (${visitorTimeZone})`,
+        timezone: visitorTimeZone,
+        pktTime: pktTimeStr,
+        isAnswered: false,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     setIsBooked(true);
   };

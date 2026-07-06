@@ -1,95 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
 @import "tailwindcss";
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
-
 @theme {
-  --font-sans: "Plus Jakarta Sans", "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", Georgia, serif;
 
-  /* Glassmorphism Color Palettes & Highlights */
-  --color-glass-slate: #0F172A;       /* Slate 900 for absolute contrast */
-  --color-glass-text-dark: #1E293B;  /* Slate 800 for body copy */
-  --color-glass-text-muted: #475569; /* Slate 600 for descriptions */
+  --color-japandi-bg: #FAF9F6;
+  --color-japandi-soot: #1C1B19;
+  --color-japandi-earth: #8C7A6B;
+  --color-japandi-linen: #F5F2EB;
+  --color-japandi-border: #E5E2D9;
+  --color-japandi-sage: #8A9A86;
   
-  /* Aurora Glow Orbs */
-  --color-glass-glow-blue: #E0F2FE;  /* Icy Sky Blue */
-  --color-glass-glow-purple: #F3E8FF;/* Soft Lilac / Violet */
-  --color-glass-glow-peach: #FFF7ED; /* Warm Peach */
-  --color-glass-glow-mint: #ECFDF5;  /* Soft Teal Mint */
-  --color-glass-highlight: #4F46E5;  /* Royal Blue Accent */
-
-  --animate-marquee-right: marquee-reverse 45s linear infinite;
-  --animate-float-slow: float-slow 15s ease-in-out infinite;
-  --animate-float-mid: float-mid 12s ease-in-out infinite;
-
-  @keyframes marquee-reverse {
-    0% { transform: translateX(-50%); }
-    100% { transform: translateX(0%); }
-  }
-
-  @keyframes float-slow {
-    0%, 100% { transform: translate(0, 0) scale(1); }
-    50% { transform: translate(40px, -60px) scale(1.15); }
-  }
-
-  @keyframes float-mid {
-    0%, 100% { transform: translate(0, 0) scale(1.1); }
-    50% { transform: translate(-30px, 45px) scale(0.9); }
-  }
+  /* Helper color fallbacks to prevent undefined styles */
+  --color-slate-705: #3F3F46;
+  --color-slate-650: #52525B;
 }
 
-/* Custom base styles for smooth Glassmorphism feel */
-html {
-  scroll-behavior: smooth;
-  background-color: #FAF9F6; /* Creamy minimal white */
-  overflow-x: hidden;
-  width: 100%;
-  -webkit-overflow-scrolling: touch;
-  font-size: 17px;
-}
-
-body {
-  color: #1E293B;
-  overflow-x: hidden;
-  width: 100%;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Base Utility Classes for Glassmorphism panels */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 10px 40px -10px rgba(15, 23, 42, 0.05);
-}
-
+/* Custom Glassmorphism Card Style */
 .glass-card {
-  background: rgba(255, 255, 255, 0.35);
+  background-color: rgba(255, 255, 255, 0.45);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 30px -8px rgba(15, 23, 42, 0.03);
-  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 1.5rem;
 }
 
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.55);
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px -12px rgba(15, 23, 42, 0.08);
+/* Hide scrollbar utility */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
-
-.glass-input {
-  background: rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.glass-input:focus {
-  background: rgba(255, 255, 255, 0.65);
-  border-color: rgba(79, 70, 229, 0.4);
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

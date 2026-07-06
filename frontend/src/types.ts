@@ -1,10 +1,9 @@
 export interface SubService {
   id: string;
   name: string;
-  brandName?: string;
-  accentColor: string; // hex code
-  textColor: string; // hex code for text
-  tailwindColor: string; // tailwind color prefix (e.g. "emerald", "blue", "orange")
+  accentColor: string;
+  textColor: string;
+  tailwindColor: string;
   description: string;
 }
 
@@ -13,68 +12,69 @@ export interface PortfolioItem {
   title: string;
   skills: string[];
   description: string;
-  mediaType: 'image' | 'pdf' | 'video';
-  mediaUrl: string; // local or mock url
-  mediaTitle?: string; // friendly title for doc preview
-  thumbnailUrl: string; // local or mock url
+  mediaType: string;
+  mediaUrl: string;
+  mediaTitle: string;
+  thumbnailUrl: string;
 }
 
 export interface Service {
   id: string;
   name: string;
-  brandLogo?: string; // icon name or logo path
-  accentColor: string; // hex color code
-  textColor: string; // text hex color code
-  tailwindColor: string; // tailwind color prefix (e.g. "emerald", "blue", "violet")
+  accentColor: string;
+  textColor: string;
+  tailwindColor: string;
   shortDesc: string;
   overallDescription: string;
-  subServices?: SubService[];
-  portfolio: PortfolioItem[];
-  iconName: string; // lucide icon name
+  iconName: string;
+  subServices: SubService[];
+  portfolio?: PortfolioItem[];
+}
+
+export interface Enquiry {
+  id: string;
+  name: string;
+  contactMethod: 'email' | 'whatsapp' | 'other';
+  contactInfo: string;
+  subject: string;
+  message: string;
+  selectedService: string;
+  timestamp: string;
+  isAnswered: boolean;
+  timezone: string;
+}
+
+export interface Consultation {
+  id: string;
+  name: string;
+  email: string;
+  country: string;
+  selectedDateTime: string;
+  timezone: string;
+  pktTime: string;
+  isAnswered: boolean;
+  timestamp: string;
 }
 
 export interface Rating {
   id: string;
+  serviceId: string;
+  comment: string;
   name: string;
-  avatarUrl?: string; // optional
   designation: string;
   company: string;
+  avatarUrl: string;
   country: string;
-  serviceId: string; // associated service ID
-  rating: number; // e.g. 5
-  comment: string;
-}
-
-export interface TeamMember {
-  id: string;
-  name: string;
-  title: string;
-  pictureUrl: string;
-  experience: string;
-  isOnline: boolean;
-  certifications: string[]; // Achievements tied to individuals
-}
-
-export interface Certification {
-  id: string;
-  name: string;
-  issuer: string;
-  year: string;
-  logoUrl?: string;
+  ratingStars?: number;
+  isApproved?: boolean;
 }
 
 export interface ResourceItem {
   id: string;
-  title: string;
   category: string;
+  title: string;
   description: string;
-  fileSize: string;
   fileType: string;
+  fileSize: string;
   downloadCount: number;
-}
-
-export interface FAQItem {
-  id: string;
-  question: string;
-  answer: string;
 }

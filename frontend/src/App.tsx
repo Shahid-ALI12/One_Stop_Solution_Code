@@ -12,6 +12,12 @@ import FAQsSection from './components/FAQsSection';
 import ContactSection from './components/ContactSection';
 import Footer from './components/Footer';
 
+// Admin Components & Data Hooks
+import AdminDashboard from './components/AdminDashboard';
+import AdminLoginModal from './components/AdminLoginModal';
+import { SERVICES, RATINGS } from './data/mockData';
+import { Service, Enquiry, Consultation, Rating, PortfolioItem } from './types';
+
 export default function App() {
   const [activeSection, setActiveSection] = useState('hero');
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -21,8 +27,84 @@ export default function App() {
   const [preSelectedService, setPreSelectedService] = useState('');
   const [preSelectedPortfolio, setPreSelectedPortfolio] = useState('');
 
+  // Authentication State
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+
+  // Centralized Lifted Operational Counters State
+  const [stats, setStats] = useState({
+    clients: 140,
+    orders: 380,
+    countries: 18
+  });
+
+  // Centralized Lifted Services List State
+  const [services, setServices] = useState<Service[]>(() => SERVICES);
+
+  // Centralized Lifted Client Reviews State (Seeded with isApproved: true)
+  const [ratings, setRatings] = useState<Rating[]>(() => 
+    RATINGS.map(r => ({ ...r, isApproved: true }))
+  );
+
+  // Centralized Enquiries State (Seeded with 2 professional entries)
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([
+    {
+      id: 'q-1',
+      name: 'James C.',
+      contactMethod: 'email',
+      contactInfo: 'james@lumina.io',
+      subject: 'Custom Excel Macro Automation',
+      message: 'Hello, we are looking to integrate dynamic Shopify dashboards with an offline Excel workbook. Can we schedule a quick call to talk details?',
+      selectedService: 'MS Office Automation',
+      timestamp: new Date(Date.now() - 3600000 * 4).toISOString(), // 4 hours ago
+      isAnswered: false,
+      timezone: 'United States (EST)'
+    },
+    {
+      id: 'q-2',
+      name: 'Amina Shah',
+      contactMethod: 'whatsapp',
+      contactInfo: '+923009876543',
+      subject: 'Historical Catch-Up',
+      message: 'Hello, we have 2 years of bookkeeping backlog. Need cleanup urgently for our upcoming audit.',
+      selectedService: 'Catch-Up Bookkeeping',
+      timestamp: new Date(Date.now() - 3600000 * 24).toISOString(), // 1 day ago
+      isAnswered: true,
+      timezone: 'Pakistan (PKT)'
+    }
+  ]);
+
+  // Centralized Consultations State (Seeded with 2 initial bookings)
+  const [consultations, setConsultations] = useState<Consultation[]>([
+    {
+      id: 'c-1',
+      name: 'Marcus K.',
+      email: 'm.keller@apex.com',
+      country: 'Germany',
+      selectedDateTime: 'Jul 15, 2026, 3:30 PM (CEST)',
+      timezone: 'Europe/Berlin',
+      pktTime: '15-Jul-2026 6:30 PM (PKT)',
+      isAnswered: false,
+      timestamp: new Date(Date.now() - 3600000 * 2).toISOString() // 2 hours ago
+    },
+    {
+      id: 'c-2',
+      name: 'Saira Malik',
+      email: 'saira@creativeagencies.com',
+      country: 'Pakistan',
+      selectedDateTime: 'Jul 18, 2026, 11:00 AM (PKT)',
+      timezone: 'Asia/Karachi',
+      pktTime: '18-Jul-2026 11:00 AM (PKT)',
+      isAnswered: true,
+      timestamp: new Date(Date.now() - 3600000 * 48).toISOString() // 2 days ago
+    }
+  ]);
+
   // Scroll spy to highlight active menu section
   useEffect(() => {
+    // If authenticated in admin panel, disable scroll spy to prevent errors
+    if (isAdminAuthenticated) return;
+
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 400);
       const scrollPosition = window.scrollY + 200; // Offset for sticky navbar
@@ -53,7 +135,7 @@ export default function App() {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isAdminAuthenticated]);
 
   const handleNavigate = (sectionId: string) => {
     const targetElement = document.getElementById(sectionId);
@@ -79,14 +161,34 @@ export default function App() {
     handleNavigate('contact');
   };
 
+  // Switch layouts completely upon Authentication
+  if (isAdminAuthenticated) {
+    return (
+      <AdminDashboard
+        onLogout={() => setIsAdminAuthenticated(false)}
+        enquiries={enquiries}
+        onUpdateEnquiries={setEnquiries}
+        consultations={consultations}
+        onUpdateConsultations={setConsultations}
+        services={services}
+        onUpdateServices={setServices}
+        ratings={ratings}
+        onUpdateRatings={setRatings}
+        stats={stats}
+        onUpdateStats={setStats}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-japandi-bg text-japandi-soot antialiased flex flex-col justify-between selection:bg-japandi-earth/15 selection:text-japandi-earth">
       
-      {/* Sticky Navbar */}
+      {/* Sticky Navbar with double-click hidden login hook */}
       <Navbar 
         activeSection={activeSection} 
         onNavigate={handleNavigate} 
         onSelectService={setSelectedServiceId} 
+        onLogoDoubleClick={() => setIsLoginModalOpen(true)}
       />
 
       {/* Main Content Sections */}
@@ -98,18 +200,23 @@ export default function App() {
           onBook={() => handleNavigate('contact')} 
         />
 
-        {/* 2. Animated Proven Performance Counters (Moved to top right after Hero to establish immediate trust) */}
-        <RecordSection />
+        {/* 2. Animated Proven Performance Counters (Using reactive stats) */}
+        <RecordSection 
+          initialClients={stats.clients}
+          initialOrders={stats.orders}
+          initialCountries={stats.countries}
+        />
 
         {/* 3. Services, Sub-options & Portfolio Galleries */}
         <ServicesSection 
           selectedServiceId={selectedServiceId}
           setSelectedServiceId={setSelectedServiceId}
           onOrderNow={handleOrderNow}
+          servicesList={services}
         />
 
         {/* 5. Dynamic Filterable Client Reviews */}
-        <RatingsSection />
+        <RatingsSection ratingsList={ratings} />
 
         {/* 6. Downloadable Resources Hub & search queries */}
         <ResourceHubSection />
@@ -126,12 +233,23 @@ export default function App() {
           preSelectedPortfolio={preSelectedPortfolio}
           setPreSelectedService={setPreSelectedService}
           setPreSelectedPortfolio={setPreSelectedPortfolio}
+          onAddEnquiry={(newEnq) => setEnquiries(prev => [newEnq, ...prev])}
+          onAddConsultation={(newConsult) => setConsultations(prev => [newConsult, ...prev])}
         />
 
       </main>
 
       {/* Corporate footer block */}
       <Footer onNavigate={handleNavigate} />
+
+      {/* Hidden Admin Login Modal */}
+      <AdminLoginModal 
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={() => {
+          setIsAdminAuthenticated(true);
+        }}
+      />
 
       {/* Floating Back to Top Button */}
       <AnimatePresence>

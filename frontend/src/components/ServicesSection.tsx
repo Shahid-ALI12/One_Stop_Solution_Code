@@ -26,6 +26,7 @@ interface ServicesSectionProps {
   selectedServiceId: string;
   setSelectedServiceId: (id: string) => void;
   onOrderNow: (serviceName: string, portfolioTitle?: string) => void;
+  servicesList?: Service[];
 }
 
 const CATCHUP_SERVICE: Service = {
@@ -132,22 +133,29 @@ const itemVariants = {
 export default function ServicesSection({
   selectedServiceId,
   setSelectedServiceId,
-  onOrderNow
+  onOrderNow,
+  servicesList
 }: ServicesSectionProps) {
   const getServiceById = (id: string): Service => {
+    // If servicesList is provided, search there first!
+    if (servicesList) {
+      const foundInList = servicesList.find(s => s.id === id);
+      if (foundInList) return foundInList;
+    }
+
     const resolvedId = (id === 'accounting' || id === 'bookkeeping-accounting') ? 'bookkeeping' : 
                        (id === 'catch-up-bookkeeping') ? 'catchup' :
                        (id === 'tax-services') ? 'tax' : id;
 
-    if (resolvedId === 'catchup') {
+    if (resolvedId === 'catchup' && !servicesList) {
       return CATCHUP_SERVICE;
     }
-    if (resolvedId === 'tax') {
+    if (resolvedId === 'tax' && !servicesList) {
       return TAX_SERVICE;
     }
-    const found = SERVICES.find(s => s.id === resolvedId);
+    const found = (servicesList || SERVICES).find(s => s.id === resolvedId);
     if (found) {
-      if (resolvedId === 'bookkeeping') {
+      if (resolvedId === 'bookkeeping' && !servicesList) {
         return {
           ...found,
           id: 'bookkeeping',
@@ -159,6 +167,19 @@ export default function ServicesSection({
     }
     
     // Fallback: bookkeeping
+    const bk = (servicesList || SERVICES).find(s => s.id === 'bookkeeping') || (servicesList || SERVICES)[0];
+    return {
+      ...bk,
+      id: 'bookkeeping',
+      name: servicesList ? bk.name : servicesData[0].heading,
+      shortDesc: servicesList ? bk.shortDesc : servicesData[0].summary
+    };
+  };
+
+  const [activeService, setActiveService] = useState<Service | null>(() => {
+    if (servicesList && servicesList.length > 0) {
+      return servicesList[0];
+    }
     const bk = SERVICES.find(s => s.id === 'bookkeeping') || SERVICES[0];
     return {
       ...bk,
@@ -166,12 +187,22 @@ export default function ServicesSection({
       name: servicesData[0].heading,
       shortDesc: servicesData[0].summary
     };
-  };
+  });
 
-  const [activeService, setActiveService] = useState<Service | null>(null);
+  // Keep activeService in sync when servicesList changes in Admin Dashboard
+  useEffect(() => {
+    if (servicesList && activeService) {
+      const currentId = activeService.id;
+      const found = servicesList.find(s => s.id === currentId);
+      if (found) {
+        setActiveService(found);
+      } else if (servicesList.length > 0) {
+        setActiveService(servicesList[0]);
+      }
+    }
+  }, [servicesList]);
   const [selectedPortfolio, setSelectedPortfolio] = useState<PortfolioItem | null>(null);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
-  const [showAllServices, setShowAllServices] = useState(false);
   const [hoveredServiceId, setHoveredServiceId] = useState<string | null>(null);
   const [isDetailActive, setIsDetailActive] = useState(false);
   const isFirstRender = useRef(true);
@@ -192,13 +223,6 @@ export default function ServicesSection({
     }
     const service = getServiceById(selectedServiceId);
     setActiveService(service);
-    
-    // Auto-expand list if chosen service is a secondary service
-    const isCoreService = ['bookkeeping', 'catchup', 'tax'].includes(service.id);
-    if (!isCoreService) {
-      setShowAllServices(true);
-    }
-
     setIsDetailActive(true);
   }, [selectedServiceId]);
 
@@ -345,34 +369,41 @@ export default function ServicesSection({
     }
   };
 
-  const displayServicesList = [
-    {
-      id: 'bookkeeping',
-      name: servicesData[0].heading,
-      shortDesc: servicesData[0].summary,
-      accentColor: '#4f46e5'
-    },
-    {
-      id: 'catchup',
-      name: servicesData[1].heading,
-      shortDesc: servicesData[1].summary,
-      accentColor: '#0ea5e9'
-    },
-    {
-      id: 'tax',
-      name: servicesData[2].heading,
-      shortDesc: servicesData[2].summary,
-      accentColor: '#10b981'
-    },
-    ...SERVICES.filter(s => s.id !== 'bookkeeping' && s.id !== 'accounting').map(s => ({
-      id: s.id,
-      name: s.name,
-      shortDesc: s.shortDesc,
-      accentColor: s.accentColor
-    }))
-  ];
+  const displayServicesList = servicesList
+    ? servicesList.map(s => ({
+        id: s.id,
+        name: s.name,
+        shortDesc: s.shortDesc,
+        accentColor: s.accentColor
+      }))
+    : [
+        {
+          id: 'bookkeeping',
+          name: servicesData[0].heading,
+          shortDesc: servicesData[0].summary,
+          accentColor: '#4f46e5'
+        },
+        {
+          id: 'catchup',
+          name: servicesData[1].heading,
+          shortDesc: servicesData[1].summary,
+          accentColor: '#0ea5e9'
+        },
+        {
+          id: 'tax',
+          name: servicesData[2].heading,
+          shortDesc: servicesData[2].summary,
+          accentColor: '#10b981'
+        },
+        ...SERVICES.filter(s => s.id !== 'bookkeeping' && s.id !== 'accounting').map(s => ({
+          id: s.id,
+          name: s.name,
+          shortDesc: s.shortDesc,
+          accentColor: s.accentColor
+        }))
+      ];
 
-  const visibleServices = showAllServices ? displayServicesList : displayServicesList.slice(0, 3);
+  const visibleServices = displayServicesList;
 
   const getImageForService = (id: string): string => {
     switch (id) {
@@ -536,96 +567,71 @@ export default function ServicesSection({
           <div className="hidden lg:grid lg:grid-cols-12 gap-12 items-stretch">
             
             {/* Left Column (Interactive Navigation - 6 Cols) */}
-            <div className="lg:col-span-6 flex flex-col justify-start">
+            <div className="lg:col-span-6 flex flex-col justify-center">
               <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 mb-4 pl-1">
                 Our Primary Service Capabilities
               </h3>
               
-              <div className="relative lg:h-[480px] flex flex-col min-h-0">
-                <div className={`flex-1 ${
-                  showAllServices 
-                    ? 'space-y-4 lg:overflow-y-auto lg:pr-3 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent h-full' 
-                    : 'flex flex-col justify-between space-y-4 h-full'
-                }`}>
-                  {visibleServices.map((item) => {
-                    const isSelected = activeService?.id === item.id;
-                    const isHovered = hoveredServiceId === item.id;
-                    return (
-                      <motion.div
-                        key={item.id}
-                        onClick={() => {
-                          if (activeService?.id === item.id) {
-                            setIsDetailActive(true);
-                          } else {
-                            handleLocalSelect(getServiceById(item.id));
-                          }
-                        }}
-                        onMouseEnter={() => setHoveredServiceId(item.id)}
-                        onMouseLeave={() => setHoveredServiceId(null)}
-                        whileHover={{ scale: 1.015 }}
-                        className={`relative px-5 py-4 rounded-3xl cursor-pointer group select-none transition-all duration-300 border flex flex-col justify-center ${
-                          showAllServices ? 'h-auto py-6' : 'flex-1'
-                        } ${
-                          isSelected 
-                            ? 'border-white/60 shadow-lg bg-white/10' 
-                            : isHovered
-                              ? 'border-white/30 bg-white/20 shadow-md'
-                              : 'border-transparent hover:bg-white/15'
-                        }`}
-                      >
-                        {/* Sliding Frosted Glass Backdrop */}
-                        {isSelected && (
-                          <motion.div
-                            layoutId="activeGlow"
-                            className="absolute inset-0 bg-white/45 backdrop-blur-[12px] border border-white/60 rounded-3xl shadow-lg shadow-slate-200/50 -z-10"
-                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                          />
-                        )}
-                        
-                        <div className="space-y-2 relative z-10">
-                          <h4 className="font-sans font-bold text-xl text-slate-800 leading-tight">
-                            {item.name}
-                          </h4>
-                          <p className="font-sans text-[14px] text-slate-600 leading-relaxed">
-                            {item.shortDesc}
-                          </p>
-                          
-                          {/* Interactive Learn More Arrow */}
-                          <div 
-                            className="inline-flex items-center gap-1 text-xs font-bold transition-transform duration-300 group-hover:translate-x-1"
-                            style={{ color: item.accentColor }}
-                          >
-                            <span>Learn More & View Cases</span>
-                            <span className="font-sans">&gt;</span>
-                          </div>
+              <div className="flex flex-col space-y-2.5">
+                {visibleServices.map((item) => {
+                  const isSelected = activeService?.id === item.id;
+                  const isHovered = hoveredServiceId === item.id;
+                  return (
+                    <motion.div
+                      key={item.id}
+                      onClick={() => {
+                        if (activeService?.id === item.id) {
+                          setIsDetailActive(true);
+                        } else {
+                          handleLocalSelect(getServiceById(item.id));
+                        }
+                      }}
+                      onMouseEnter={() => setHoveredServiceId(item.id)}
+                      onMouseLeave={() => setHoveredServiceId(null)}
+                      whileHover={{ scale: 1.01 }}
+                      className={`relative px-5 py-3 rounded-2xl cursor-pointer group select-none transition-all duration-300 border flex items-center justify-between ${
+                        isSelected 
+                          ? 'border-white/60 shadow-md bg-white/10' 
+                          : isHovered
+                            ? 'border-white/30 bg-white/20 shadow-xs'
+                            : 'border-transparent hover:bg-white/15'
+                      }`}
+                    >
+                      {/* Sliding Frosted Glass Backdrop */}
+                      {isSelected && (
+                        <motion.div
+                          layoutId="activeGlow"
+                          className="absolute inset-0 bg-white/45 backdrop-blur-[12px] border border-white/60 rounded-2xl shadow-sm shadow-slate-200/30 -z-10"
+                          transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        />
+                      )}
+                      
+                      <div className="flex items-center space-x-3.5 relative z-10">
+                        {/* Mini logo / icon */}
+                        <div className="p-2 bg-white/85 rounded-xl shadow-xs shrink-0 group-hover:scale-105 transition-transform">
+                          {renderBrandLogo(item.id, 'w-4.5 h-4.5')}
                         </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-                
-                {/* Subtle fade-out scroll mask on desktop, visible only when scrollable */}
-                {showAllServices && (
-                  <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#FAF9F6] to-transparent pointer-events-none" />
-                )}
-              </div>
+                        
+                        <h4 className="font-sans font-bold text-base text-slate-800 leading-tight">
+                          {item.name}
+                        </h4>
+                      </div>
 
-              {/* View All / Toggle Button */}
-              <div className="pt-4 pl-1">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setShowAllServices(!showAllServices)}
-                  className="px-6 py-3 bg-white/70 hover:bg-slate-50 border border-slate-200/60 text-slate-700 hover:text-indigo-600 font-bold rounded-2xl text-xs transition-all shadow-sm cursor-pointer flex items-center gap-2"
-                >
-                  <span>{showAllServices ? 'Show Fewer Services' : 'View All Specialized Services'}</span>
-                  <span className="text-[10px]">{showAllServices ? '▲' : '▼'}</span>
-                </motion.button>
+                      {/* Right Chevron / Arrow indicator */}
+                      <div 
+                        className="relative z-10 text-slate-400 group-hover:text-slate-800 transition-colors flex items-center gap-1.5"
+                      >
+                        <span className="text-[10px] font-mono font-bold opacity-0 group-hover:opacity-100 transition-opacity">Learn More</span>
+                        <ArrowRight className="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform" style={{ color: isSelected ? item.accentColor : undefined }} />
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
 
             {/* Right Column (Visual Showcase - 6 Cols) */}
-            <div className="lg:col-span-6 lg:sticky lg:top-24 flex flex-col justify-end lg:h-[520px]">
+            <div className="lg:col-span-6 lg:sticky lg:top-24 flex flex-col justify-center lg:h-[520px]">
               <div className="lg:h-[480px]">
                 {renderImageShowcase()}
               </div>
