@@ -20,9 +20,10 @@ interface NavbarProps {
   activeSection: string;
   onNavigate: (sectionId: string) => void;
   onSelectService?: (serviceId: string) => void;
+  onLogoDoubleClick?: () => void;
 }
 
-export default function Navbar({ activeSection, onNavigate, onSelectService }: NavbarProps) {
+export default function Navbar({ activeSection, onNavigate, onSelectService, onLogoDoubleClick }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMegaOpen, setIsMegaOpen] = useState(false);
@@ -170,8 +171,10 @@ export default function Navbar({ activeSection, onNavigate, onSelectService }: N
           {/* Logo */}
           <div
             id="brand-logo"
-            className="flex items-center space-x-2.5 cursor-pointer group"
+            className="flex items-center space-x-2.5 cursor-pointer group select-none"
             onClick={() => handleItemClick('hero')}
+            onDoubleClick={onLogoDoubleClick}
+            title="Double-click to open Admin Portal"
           >
             <div className="bg-indigo-600 text-white p-2 rounded-xl transition-transform group-hover:scale-105 duration-500 shadow-md shadow-indigo-600/10">
               <Shield className="w-5 h-5" />

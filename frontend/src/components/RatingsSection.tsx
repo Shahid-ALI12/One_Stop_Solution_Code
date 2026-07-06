@@ -2,15 +2,24 @@ import { useState } from 'react';
 import { SERVICES, RATINGS } from '../data/mockData';
 import { Star, MapPin, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Rating } from '../types';
 
-export default function RatingsSection() {
+interface RatingsSectionProps {
+  ratingsList?: Rating[];
+}
+
+export default function RatingsSection({ ratingsList }: RatingsSectionProps) {
   const [filterServiceId, setFilterServiceId] = useState<string>('all');
   const [showAllRatings, setShowAllRatings] = useState(false);
 
-  // Filter ratings
+  // Filter ratings that are approved
+  const baseRatings = (ratingsList || RATINGS) as Rating[];
+  const approvedRatings = baseRatings.filter(r => r.isApproved !== false);
+
+  // Filter ratings by selected service ID
   const filteredRatings = filterServiceId === 'all' 
-    ? RATINGS 
-    : RATINGS.filter(r => r.serviceId === filterServiceId);
+    ? approvedRatings 
+    : approvedRatings.filter(r => r.serviceId === filterServiceId);
 
   const displayedRatings = showAllRatings ? filteredRatings : filteredRatings.slice(0, 3);
 

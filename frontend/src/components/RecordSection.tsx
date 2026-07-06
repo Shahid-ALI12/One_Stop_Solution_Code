@@ -2,13 +2,32 @@ import { useEffect, useState, useRef } from 'react';
 import { Users, ClipboardList, Globe2, Award } from 'lucide-react';
 import { motion } from 'motion/react';
 
-export default function RecordSection() {
+interface RecordSectionProps {
+  initialClients?: number;
+  initialOrders?: number;
+  initialCountries?: number;
+}
+
+export default function RecordSection({
+  initialClients = 140,
+  initialOrders = 380,
+  initialCountries = 18
+}: RecordSectionProps) {
   const [clients, setClients] = useState(0);
   const [orders, setOrders] = useState(0);
   const [countries, setCountries] = useState(0);
   const [hasAnimated, setHasAnimated] = useState(false);
   
   const sectionRef = useRef<HTMLElement>(null);
+
+  // Sync state if props change after initial animation
+  useEffect(() => {
+    if (hasAnimated) {
+      setClients(initialClients);
+      setOrders(initialOrders);
+      setCountries(initialCountries);
+    }
+  }, [initialClients, initialOrders, initialCountries, hasAnimated]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -18,9 +37,9 @@ export default function RecordSection() {
           setHasAnimated(true);
           
           // Define targets
-          const targetClients = 140;
-          const targetOrders = 380;
-          const targetCountries = 18;
+          const targetClients = initialClients;
+          const targetOrders = initialOrders;
+          const targetCountries = initialCountries;
 
           // Durations and step intervals
           const duration = 1600; // 1.6 seconds animation
