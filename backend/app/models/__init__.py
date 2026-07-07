@@ -8,6 +8,10 @@ from app.models.rating import Rating
 from app.models.resource import ResourceItem
 from app.models.team_member import TeamMember
 from app.models.site_stats import SiteStats
+from app.models.faq import FAQ
+from app.models.visit import Visit
+from app.models.certification import Certification
+from app.models.contact_platform import ContactPlatform
 
 __all__ = [
     "User",
@@ -21,4 +25,8 @@ __all__ = [
     "ResourceItem",
     "TeamMember",
     "SiteStats",
+    "FAQ",
+    "Visit",
+    "Certification",
+    "ContactPlatform",
 ]

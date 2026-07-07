@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models.consultation import Consultation
 from app.schemas.consultation import ConsultationCreate, ConsultationUpdate
+from app.services import notification_service
 
 
 def _to_response(c: Consultation) -> dict:
@@ -36,6 +37,11 @@ def create_consultation(db: Session, data: ConsultationCreate) -> dict:
     db.add(c)
     db.commit()
     db.refresh(c)
+    # Fire admin notifications (email + WhatsApp) — best-effort
+    try:
+        notification_service.notify_new_consultation(_to_response(c))
+    except Exception:
+        pass
     return _to_response(c)
 
 

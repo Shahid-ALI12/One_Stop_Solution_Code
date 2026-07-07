@@ -6,7 +6,9 @@ from app.admin_auth import require_admin
 from app.schemas.service import ServiceCreate, ServiceUpdate, ServiceResponse
 from app.schemas.sub_service import SubServiceCreate, SubServiceUpdate, SubServiceResponse
 from app.schemas.portfolio_item import PortfolioItemCreate, PortfolioItemUpdate, PortfolioItemResponse
+from app.schemas.reorder import ReorderRequest
 from app.services import service_service
+from app.models.service import Service, PortfolioItem
 
 router = APIRouter(prefix="/services", tags=["Services"])
 
@@ -98,3 +100,28 @@ def update_portfolio_item(p_id: int, body: PortfolioItemUpdate, db: Session = De
 def delete_portfolio_item(p_id: int, db: Session = Depends(get_db)):
     if not service_service.delete_portfolio_item(db, p_id):
         raise HTTPException(status_code=404, detail="PortfolioItem not found")
+
+
+# ---------- Reorder (batch update sort_order) ----------
+@router.put("/reorder", dependencies=[Depends(require_admin)])
+def reorder_services(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many services at once.
+    Body: { "items": [{"id": 1, "sort_order": 0}, ...] }
+    """
+    for it in body.items:
+        svc = db.query(Service).filter(Service.id == it.id).first()
+        if svc:
+            svc.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}
+
+
+@router.put("/portfolio/reorder", dependencies=[Depends(require_admin)])
+def reorder_portfolio(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many portfolio items at once."""
+    for it in body.items:
+        p = db.query(PortfolioItem).filter(PortfolioItem.id == it.id).first()
+        if p:
+            p.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}

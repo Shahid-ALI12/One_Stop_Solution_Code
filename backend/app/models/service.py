@@ -27,7 +27,7 @@ class Service(Base):
                                         order_by="SubService.sort_order")
     portfolio_items     = relationship("PortfolioItem", back_populates="service",
                                         cascade="all, delete-orphan",
-                                        order_by="PortfolioItem.id")
+                                        order_by="PortfolioItem.sort_order, PortfolioItem.id")
 
 
 class SubService(Base):
@@ -57,5 +57,6 @@ class PortfolioItem(Base):
     media_url      = Column(String, default="")
     media_title    = Column(String, default="")
     thumbnail_url  = Column(String, default="")
+    sort_order     = Column(Integer, default=0)
 
     service        = relationship("Service", back_populates="portfolio_items")

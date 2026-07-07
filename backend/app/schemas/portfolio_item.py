@@ -9,6 +9,7 @@ class PortfolioItemCreate(BaseModel):
     media_url: str = ""
     media_title: str = ""
     thumbnail_url: str = ""
+    sort_order: int = 0
 
 
 class PortfolioItemUpdate(BaseModel):
@@ -19,6 +20,7 @@ class PortfolioItemUpdate(BaseModel):
     media_url: str | None = None
     media_title: str | None = None
     thumbnail_url: str | None = None
+    sort_order: int | None = None
 
 
 class PortfolioItemResponse(BaseModel):
@@ -31,5 +33,6 @@ class PortfolioItemResponse(BaseModel):
     media_url: str
     media_title: str
     thumbnail_url: str
+    sort_order: int
 
     model_config = {"from_attributes": True}

@@ -6,6 +6,7 @@ from app.db.database import create_tables, SessionLocal
 from app.routes import (
     health, users, auth, services, enquiries, consultations,
     ratings, resources, team_members, stats, seed,
+    faqs, certifications, contact_platforms, dashboard, visits,
 )
 from app.services import seed_service
 
@@ -53,6 +54,12 @@ def create_app() -> FastAPI:
     app.include_router(team_members.router)
     app.include_router(stats.router)
     app.include_router(seed.router)
+    # New P1 routers
+    app.include_router(faqs.router)
+    app.include_router(certifications.router)
+    app.include_router(contact_platforms.router)
+    app.include_router(dashboard.router)
+    app.include_router(visits.router)
 
     @app.get("/", tags=["Root"])
     def root():
@@ -65,6 +72,8 @@ def create_app() -> FastAPI:
                 "/services/", "/enquiries/", "/consultations/",
                 "/ratings/", "/resources/", "/team/", "/stats/",
                 "/seed/", "/seed/status",
+                "/faqs/", "/certifications/", "/contact-platforms/",
+                "/stats/dashboard", "/visits/", "/visits/by-country",
             ],
         }
 

@@ -7,9 +7,9 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id:        int
-    name:      str
-    email:     str
-    is_active: bool
+    id:          int
+    name:        str
+    email:       str
+    is_verified: bool
 
     model_config = {"from_attributes": True}
