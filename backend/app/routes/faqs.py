@@ -10,6 +10,15 @@ from app.services import faq_service
 router = APIRouter(prefix="/faqs", tags=["FAQs"])
 
 
+@router.put("/reorder", dependencies=[Depends(require_admin)])
+def reorder_faqs(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many FAQs at once.
+    MUST be registered before /{faq_id} to avoid path-param capture.
+    """
+    faq_service.reorder_faqs(db, [it.model_dump() for it in body.items])
+    return {"ok": True, "count": len(body.items)}
+
+
 @router.get("/", response_model=list[FAQResponse])
 def list_faqs(active_only: bool = False, db: Session = Depends(get_db)):
     """Public: returns active FAQs. Admin: pass active_only=false to see all."""
@@ -30,10 +39,7 @@ def update_faq(faq_id: int, body: FAQUpdate, db: Session = Depends(get_db)):
     return res
 
 
-@router.put("/reorder", dependencies=[Depends(require_admin)])
-def reorder_faqs(body: ReorderRequest, db: Session = Depends(get_db)):
-    faq_service.reorder_faqs(db, [it.model_dump() for it in body.items])
-    return {"ok": True, "count": len(body.items)}
+
 
 
 @router.delete("/{faq_id}", status_code=status.HTTP_204_NO_CONTENT,

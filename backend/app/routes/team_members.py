@@ -11,6 +11,19 @@ from app.models.team_member import TeamMember
 router = APIRouter(prefix="/team", tags=["Team"])
 
 
+@router.put("/reorder", dependencies=[Depends(require_admin)])
+def reorder_team_members(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many team members at once.
+    MUST be registered before /{team_id} to avoid path-param capture.
+    """
+    for it in body.items:
+        t = db.query(TeamMember).filter(TeamMember.id == it.id).first()
+        if t:
+            t.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}
+
+
 @router.get("/", response_model=list[TeamMemberResponse])
 def list_team_members(db: Session = Depends(get_db)):
     return team_member_service.list_team_members(db)
@@ -38,12 +51,4 @@ def delete_team_member(team_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Team member not found")
 
 
-@router.put("/reorder", dependencies=[Depends(require_admin)])
-def reorder_team_members(body: ReorderRequest, db: Session = Depends(get_db)):
-    """Batch-update sort_order for many team members at once."""
-    for it in body.items:
-        t = db.query(TeamMember).filter(TeamMember.id == it.id).first()
-        if t:
-            t.sort_order = it.sort_order
-    db.commit()
-    return {"ok": True, "count": len(body.items)}
+

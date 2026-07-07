@@ -11,6 +11,19 @@ from app.models.rating import Rating
 router = APIRouter(prefix="/ratings", tags=["Ratings"])
 
 
+@router.put("/reorder", dependencies=[Depends(require_admin)])
+def reorder_ratings(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many ratings at once.
+    MUST be registered before /{rating_id} to avoid path-param capture.
+    """
+    for it in body.items:
+        r = db.query(Rating).filter(Rating.id == it.id).first()
+        if r:
+            r.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}
+
+
 @router.get("/", response_model=list[RatingResponse])
 def list_ratings(
     approved: bool | None = Query(default=None, description="Filter by is_approved"),
@@ -49,12 +62,4 @@ def delete_rating(rating_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Rating not found")
 
 
-@router.put("/reorder", dependencies=[Depends(require_admin)])
-def reorder_ratings(body: ReorderRequest, db: Session = Depends(get_db)):
-    """Batch-update sort_order for many ratings at once."""
-    for it in body.items:
-        r = db.query(Rating).filter(Rating.id == it.id).first()
-        if r:
-            r.sort_order = it.sort_order
-    db.commit()
-    return {"ok": True, "count": len(body.items)}
+

@@ -13,6 +13,31 @@ from app.models.service import Service, PortfolioItem
 router = APIRouter(prefix="/services", tags=["Services"])
 
 
+# ---------- Reorder (MUST be before /{service_id} to avoid path-param capture) ----------
+@router.put("/reorder", dependencies=[Depends(require_admin)])
+def reorder_services(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many services at once.
+    Body: { "items": [{"id": 1, "sort_order": 0}, ...] }
+    """
+    for it in body.items:
+        svc = db.query(Service).filter(Service.id == it.id).first()
+        if svc:
+            svc.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}
+
+
+@router.put("/portfolio/reorder", dependencies=[Depends(require_admin)])
+def reorder_portfolio(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many portfolio items at once."""
+    for it in body.items:
+        p = db.query(PortfolioItem).filter(PortfolioItem.id == it.id).first()
+        if p:
+            p.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}
+
+
 # ---------- Public ----------
 @router.get("/", response_model=list[ServiceResponse])
 def list_services(db: Session = Depends(get_db)):
@@ -102,26 +127,4 @@ def delete_portfolio_item(p_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="PortfolioItem not found")
 
 
-# ---------- Reorder (batch update sort_order) ----------
-@router.put("/reorder", dependencies=[Depends(require_admin)])
-def reorder_services(body: ReorderRequest, db: Session = Depends(get_db)):
-    """Batch-update sort_order for many services at once.
-    Body: { "items": [{"id": 1, "sort_order": 0}, ...] }
-    """
-    for it in body.items:
-        svc = db.query(Service).filter(Service.id == it.id).first()
-        if svc:
-            svc.sort_order = it.sort_order
-    db.commit()
-    return {"ok": True, "count": len(body.items)}
 
-
-@router.put("/portfolio/reorder", dependencies=[Depends(require_admin)])
-def reorder_portfolio(body: ReorderRequest, db: Session = Depends(get_db)):
-    """Batch-update sort_order for many portfolio items at once."""
-    for it in body.items:
-        p = db.query(PortfolioItem).filter(PortfolioItem.id == it.id).first()
-        if p:
-            p.sort_order = it.sort_order
-    db.commit()
-    return {"ok": True, "count": len(body.items)}
