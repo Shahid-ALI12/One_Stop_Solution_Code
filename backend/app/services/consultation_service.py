@@ -1,9 +1,10 @@
 """CRUD for Consultation."""
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from app.models.consultation import Consultation
 from app.schemas.consultation import ConsultationCreate, ConsultationUpdate
 from app.services import notification_service
+from app.services import tz_service
 
 
 def _to_response(c: Consultation) -> dict:
@@ -26,13 +27,46 @@ def list_consultations(db: Session) -> list[dict]:
 
 
 def create_consultation(db: Session, data: ConsultationCreate) -> dict:
+    """Create a new consultation request.
+
+    Validates the requested slot via tz_service.validate_slot:
+      - Parses selected_date_time (many formats supported).
+      - Converts to PKT for storage in `pkt_time`.
+      - Rejects past / too-soon / too-far slots.
+      - Detects double-bookings (same email + same slot already booked).
+      - Returns warnings for out-of-business-hours slots (still allowed).
+
+    Raises tz_service.SlotValidationError on hard rejects. The route
+    layer catches this and returns a 400 with the public message.
+    """
+    # Fetch existing consultations for this email to detect double-bookings.
+    # Use case-insensitive match (func.lower) so 'User@X.com' matches 'user@x.com'
+    # stored in DB. SQLite's default `==` is case-sensitive for non-ASCII.
+    norm_email = data.email.strip().lower() if data.email else ""
+    existing = (
+        db.query(Consultation)
+        .filter(func.lower(Consultation.email) == norm_email)
+        .all()
+        if norm_email
+        else []
+    )
+
+    _aware_dt, pkt_time_str, _warnings = tz_service.validate_slot(
+        selected_date_time=data.selected_date_time,
+        timezone_name=data.timezone or None,
+        email=data.email,
+        existing=existing,
+    )
+
+    # Use the server-computed pkt_time (authoritative) — overrides any
+    # client-supplied pkt_time so clients can't spoof it.
     c = Consultation(
         name=data.name,
         email=data.email,
         country=data.country,
         selected_date_time=data.selected_date_time,
         timezone=data.timezone,
-        pkt_time=data.pkt_time,
+        pkt_time=pkt_time_str,
     )
     db.add(c)
     db.commit()

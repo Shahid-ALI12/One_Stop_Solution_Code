@@ -51,5 +51,13 @@ class Settings(BaseSettings):
     # ── JWT ──────────────────────────────────────────────────
     JWT_EXPIRES_DAYS:   int = 7
 
+    # ── File uploads ─────────────────────────────────────────
+    UPLOAD_DIR:            str = "uploads"
+    UPLOAD_MAX_BYTES:      int  = 10 * 1024 * 1024  # 10 MB
+    UPLOAD_PORTFOLIO_EXT:  str  = "jpg,jpeg,png,webp,gif"
+    UPLOAD_RESOURCE_EXT:   str  = "pdf,doc,docx,xls,xlsx,ppt,pptx,zip,txt"
+    # Public base URL prefix for serving uploaded files. Empty = relative (same-origin)
+    UPLOAD_PUBLIC_BASE:    str  = ""
+
 
 settings = Settings()
