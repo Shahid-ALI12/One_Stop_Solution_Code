@@ -830,10 +830,27 @@ export default function AdminDashboard(props: AdminDashboardProps) {
           {/* ← Exit Workspace anchor link at peak */}
           <button
             onClick={onLogout}
-            className="w-full mb-8 px-4 py-3 rounded-2xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 flex items-center justify-center space-x-2.5 transition-all cursor-pointer active:scale-[0.98]"
+            className="w-full mb-3 px-4 py-3 rounded-2xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 flex items-center justify-center space-x-2.5 transition-all cursor-pointer active:scale-[0.98]"
           >
             <ArrowLeft className="w-4 h-4 text-slate-400" />
             <span>← Exit Workspace & View Live Site</span>
+          </button>
+
+          {/* ↗ Open Public Site in New Tab — keeps admin session active in this
+              tab so the user can edit while watching the public site update in
+              real time (powered by the cross-tab storage listener in App.tsx). */}
+          <button
+            onClick={() => {
+              // Open root URL without #admin so the new tab loads the public
+              // site (not the admin login modal).
+              const publicUrl = window.location.pathname + window.location.search;
+              window.open(publicUrl, '_blank', 'noopener');
+            }}
+            className="w-full mb-8 px-4 py-3 rounded-2xl text-xs font-bold text-emerald-300 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/15 border border-emerald-500/20 hover:border-emerald-500/35 flex items-center justify-center space-x-2.5 transition-all cursor-pointer active:scale-[0.98]"
+            title="Open the public site in a new tab. Edits you make here will appear there instantly."
+          >
+            <ExternalLink className="w-4 h-4 text-emerald-400" />
+            <span>Open Live Site in New Tab (Real-Time Sync)</span>
           </button>
 
           {/* Control center Branding panel */}

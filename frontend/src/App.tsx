@@ -102,6 +102,73 @@ export default function App() {
   useEffect(() => { savePersisted('consultations', consultations); }, [consultations]);
   useEffect(() => { savePersisted('stats', stats); }, [stats]);
 
+  // ------------------------------------------------------------------
+  // CROSS-TAB REAL-TIME SYNC
+  // ------------------------------------------------------------------
+  // When the user has Admin open in one tab and the Public Site open in
+  // another, edits made in admin are written to localStorage (above), but
+  // the public site tab's React state doesn't know about them — so the
+  // public site keeps showing stale data until the user manually refreshes.
+  //
+  // The browser fires a `storage` event in OTHER tabs/windows whenever
+  // localStorage is modified. We listen for it here and re-hydrate the
+  // affected slice of state. This is what makes admin edits show up on the
+  // public site IN REAL TIME (no refresh, no logout needed).
+  //
+  // Same-tab updates (admin → logout → public site) already work because
+  // the in-memory state is preserved across the unmount.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || !e.key.startsWith(PERSIST_PREFIX)) return;
+      const key = e.key.slice(PERSIST_PREFIX.length);
+      if (e.newValue == null) return; // key was deleted — ignore
+      try {
+        const parsed = JSON.parse(e.newValue);
+        switch (key) {
+          case 'services':
+            setServices(prev => {
+              const next = Array.isArray(parsed) && parsed.length ? parsed : prev;
+              return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+            });
+            break;
+          case 'teamMembers':
+            setTeamMembers(prev => {
+              const next = Array.isArray(parsed) && parsed.length ? parsed : prev;
+              return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+            });
+            break;
+          case 'ratings':
+            setRatings(prev => {
+              const next = Array.isArray(parsed) && parsed.length ? parsed : prev;
+              return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+            });
+            break;
+          case 'enquiries':
+            setEnquiries(prev => {
+              const next = Array.isArray(parsed) && parsed.length ? parsed : prev;
+              return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+            });
+            break;
+          case 'consultations':
+            setConsultations(prev => {
+              const next = Array.isArray(parsed) && parsed.length ? parsed : prev;
+              return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+            });
+            break;
+          case 'stats':
+            setStats(prev => (JSON.stringify(prev) === JSON.stringify(parsed) ? prev : parsed));
+            break;
+          default:
+            break;
+        }
+      } catch {
+        // ignore malformed payloads — never let a bad sync crash the app
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   // Hash-based admin access — visiting #admin auto-opens the login modal.
   // Works in both unauthenticated and authenticated states (lets the user
   // jump straight back into the dashboard).
