@@ -1,8 +1,9 @@
-import os
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.db.database import create_tables, SessionLocal
@@ -15,16 +16,31 @@ from app.routes import (
 from app.services import seed_service
 
 
+logger = logging.getLogger("app")
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Production guards — refuse to start with insecure defaults.
+    settings.validate_production()
+
     # Create DB tables on startup
     create_tables()
     # Ensure the uploads directory exists so StaticFiles can mount safely
     Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
-    # Auto-seed if DB is empty (idempotent)
+    # Auto-seed if DB is empty (idempotent). Wrap in try/except so a seed
+    # failure (e.g. partial prior seed, schema mismatch) doesn't prevent
+    # the app from starting — the admin can re-trigger via POST /seed/?force=true.
     db = SessionLocal()
     try:
         seed_service.run_seed(db, force=False)
+    except Exception:
+        logger.exception("Auto-seed failed; continuing startup. "
+                         "Run POST /seed/?force=true to retry.")
     finally:
         db.close()
     yield
@@ -44,8 +60,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
     )
 
     # Register routers
@@ -76,6 +92,25 @@ def create_app() -> FastAPI:
     upload_path = Path(settings.UPLOAD_DIR).resolve()
     upload_path.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads", StaticFiles(directory=str(upload_path)), name="uploads")
+
+    # ── Global exception handler ─────────────────────────────────
+    # Never leak stack traces to clients, even in DEBUG mode (DEBUG just
+    # controls FastAPI's own error pages for HTTPException-derived errors).
+    @app.exception_handler(Exception)
+    async def _unhandled_exception_handler(request: Request, exc: Exception):
+        # HTTPException is FastAPI's own — let its handler take over so the
+        # `detail` field is preserved verbatim.
+        if isinstance(exc, HTTPException):
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=getattr(exc, "headers", None),
+            )
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
 
     @app.get("/", tags=["Root"])
     def root():

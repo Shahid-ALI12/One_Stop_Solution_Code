@@ -5,14 +5,19 @@ geolocation (using the free ipapi.co service, no key required for
 ~30k requests/month).
 """
 import httpx
+from cachetools import TTLCache
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from app.models.visit import Visit
 from app.config import settings
 
 
-# ── IP → country cache (in-memory; survives across requests in the same process) ──
-_IP_CACHE: dict[str, dict] = {}
+# ── IP → country cache (bounded TTL; max 10k entries, 24h expiry) ──
+# Using a bounded cache prevents unbounded memory growth from unique
+# visitor IPs over months of uptime. TTL=86400s = 24h means a returning
+# visitor from the same IP after 24h will re-trigger the geoip lookup
+# (their IP may have moved countries, e.g. mobile carrier reassignment).
+_IP_CACHE: TTLCache = TTLCache(maxsize=10_000, ttl=86400)
 
 
 def _geoip(ip: str) -> dict:

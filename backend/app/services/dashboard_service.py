@@ -7,7 +7,7 @@ Returns all the data the admin dashboard charts need in one call:
 - Ratings: overall average + per-service breakdown
 """
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case
+from sqlalchemy import func
 from app.models.visit import Visit
 from app.models.enquiry import Enquiry
 from app.models.consultation import Consultation

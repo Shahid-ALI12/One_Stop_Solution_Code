@@ -17,12 +17,18 @@ function getSessionId(): string {
   try {
     let sid = sessionStorage.getItem(STORAGE_KEY);
     if (!sid) {
-      sid = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      // Use crypto.randomUUID when available (all modern browsers) for
+      // proper entropy. Fall back to a longer random string otherwise.
+      const uuid =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}-${Math.random().toString(36).slice(2, 12)}`;
+      sid = `chat-${uuid}`;
       sessionStorage.setItem(STORAGE_KEY, sid);
     }
     return sid;
   } catch {
-    return `chat-${Date.now()}`;
+    return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
   }
 }
 
@@ -48,7 +54,8 @@ export default function ChatbotWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
   const sessionIdRef = useRef<string>(getSessionId());
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages OR when the typing indicator
+  // appears (otherwise the dots can be hidden below the fold).
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
@@ -60,11 +67,24 @@ export default function ChatbotWidget() {
       // Focus input shortly after opening
       setTimeout(() => inputRef.current?.focus(), 200);
     }
-  }, [isOpen, messages, scrollToBottom]);
+  }, [isOpen, messages, isTyping, scrollToBottom]);
+
+  // Queue for messages submitted while the bot is "typing". Without this,
+  // a user who hits Enter twice would silently lose the second message
+  // (send() returns early because isTyping is true, but the input was
+  // already cleared).
+  const pendingQueueRef = useRef<string[]>([]);
 
   const send = useCallback(async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || isTyping) return;
+    if (!trimmed) return;
+
+    // If the bot is currently typing, queue this message instead of
+    // dropping it. It will be sent after the current response completes.
+    if (isTyping) {
+      pendingQueueRef.current.push(trimmed);
+      return;
+    }
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
@@ -76,13 +96,19 @@ export default function ChatbotWidget() {
     setIsTyping(true);
 
     try {
-      const res = await apiClient.sendChatMessage(trimmed, sessionIdRef.current);
+      // Race the API call against a minimum 500ms typing delay so the
+      // dots don't flash and disappear too quickly on cache-hit responses
+      // (which would otherwise return in <100ms and feel janky).
+      const [res] = await Promise.all([
+        apiClient.sendChatMessage(trimmed, sessionIdRef.current),
+        new Promise(resolve => setTimeout(resolve, 500)),
+      ]);
       const botMsg: ChatMessage = {
         id: `b-${Date.now()}`,
         role: 'bot',
-        text: res.reply,
-        suggestions: res.suggestions || [],
-        intent: res.intent,
+        text: (res as any).reply,
+        suggestions: (res as any).suggestions || [],
+        intent: (res as any).intent,
       };
       setMessages(prev => [...prev, botMsg]);
       if (!isOpen) setUnreadCount(c => c + 1);
@@ -97,6 +123,13 @@ export default function ChatbotWidget() {
       setMessages(prev => [...prev, botMsg]);
     } finally {
       setIsTyping(false);
+      // Drain the queue: send the next pending message (if any).
+      const next = pendingQueueRef.current.shift();
+      if (next) {
+        // Use a microtask so the state update from setIsTyping(false)
+        // has flushed before we re-enter send().
+        setTimeout(() => send(next), 0);
+      }
     }
   }, [isTyping, isOpen]);
 

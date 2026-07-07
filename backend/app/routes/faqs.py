@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.dependencies import get_db
-from app.admin_auth import require_admin
+from app.admin_auth import require_admin, get_optional_admin
+from app.models.admin_user import AdminUser
 from app.schemas.faq import FAQCreate, FAQUpdate, FAQResponse
 from app.schemas.reorder import ReorderRequest
 from app.services import faq_service
@@ -19,9 +20,20 @@ def reorder_faqs(body: ReorderRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/", response_model=list[FAQResponse])
-def list_faqs(active_only: bool = False, db: Session = Depends(get_db)):
-    """Public: returns active FAQs. Admin: pass active_only=false to see all."""
-    return faq_service.list_faqs(db, only_active=active_only)
+def list_faqs(
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    admin: AdminUser | None = Depends(get_optional_admin),
+):
+    """Public: returns active FAQs only (default).
+
+    Admin: pass `?active_only=false` with a valid Bearer token to see all
+    FAQs (including inactive drafts). Anonymous callers requesting
+    `active_only=false` are silently downgraded to active-only — this is
+    intentional so the endpoint never 401s on the public site.
+    """
+    see_all = active_only is False and admin is not None
+    return faq_service.list_faqs(db, only_active=not see_all)
 
 
 @router.post("/", response_model=FAQResponse, status_code=status.HTTP_201_CREATED,

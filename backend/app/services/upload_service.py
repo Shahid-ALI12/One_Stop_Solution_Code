@@ -14,11 +14,10 @@ extension-only check; magic-byte verification reads the first few bytes
 of the file and confirms they match the expected signature for the
 claimed file type. Files that don't match are rejected with 415.
 """
-import os
 import uuid
 from pathlib import Path
 
-from fastapi import UploadFile, HTTPException, status
+from fastapi import UploadFile, HTTPException
 
 from app.config import settings
 

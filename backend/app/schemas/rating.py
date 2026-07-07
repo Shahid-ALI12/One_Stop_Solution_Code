@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RatingCreate(BaseModel):
@@ -9,7 +9,8 @@ class RatingCreate(BaseModel):
     country: str = ""
     avatar_url: str = ""
     comment: str = ""
-    rating_stars: int = 5
+    # Star rating must be 1..5 inclusive. Default is 5 (max).
+    rating_stars: int = Field(default=5, ge=1, le=5)
     is_approved: bool = False
     sort_order: int = 0
 
@@ -22,7 +23,8 @@ class RatingUpdate(BaseModel):
     country: str | None = None
     avatar_url: str | None = None
     comment: str | None = None
-    rating_stars: int | None = None
+    # Star rating must be 1..5 inclusive when provided.
+    rating_stars: int | None = Field(default=None, ge=1, le=5)
     is_approved: bool | None = None
     sort_order: int | None = None
 

@@ -2,7 +2,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.dependencies import get_db
-from app.admin_auth import require_admin
+from app.admin_auth import require_admin, get_optional_admin
+from app.models.admin_user import AdminUser
 from app.schemas.contact_platform import ContactPlatformCreate, ContactPlatformUpdate, ContactPlatformResponse
 from app.services import contact_platform_service
 
@@ -10,8 +11,19 @@ router = APIRouter(prefix="/contact-platforms", tags=["Contact Platforms"])
 
 
 @router.get("/", response_model=list[ContactPlatformResponse])
-def list_platforms(active_only: bool = False, db: Session = Depends(get_db)):
-    return contact_platform_service.list_platforms(db, only_active=active_only)
+def list_platforms(
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    admin: AdminUser | None = Depends(get_optional_admin),
+):
+    """Public: returns active platforms only (default).
+
+    Admin: pass `?active_only=false` with a valid Bearer token to see all
+    platforms. Anonymous callers requesting `active_only=false` are
+    silently downgraded to active-only.
+    """
+    see_all = active_only is False and admin is not None
+    return contact_platform_service.list_platforms(db, only_active=not see_all)
 
 
 @router.post("/", response_model=ContactPlatformResponse, status_code=status.HTTP_201_CREATED,

@@ -72,3 +72,11 @@ httpx>=0.27.0
 
 # Added for file upload endpoints (multipart/form-data parsing)
 python-multipart>=0.0.20
+
+# Auth: JWT + password hashing (security.py imports both at module-load time)
+passlib[bcrypt]>=1.7.4
+bcrypt<4.1
+python-jose[cryptography]>=3.3.0
+
+# Bounded TTL cache for visit_service._IP_CACHE (replaces unbounded dict)
+cachetools>=5.5.0

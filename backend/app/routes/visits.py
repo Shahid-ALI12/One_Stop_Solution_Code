@@ -1,5 +1,5 @@
 """Visit tracking routes — public POST endpoint + admin GET."""
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.orm import Session
 from app.dependencies import get_db
 from app.admin_auth import require_admin

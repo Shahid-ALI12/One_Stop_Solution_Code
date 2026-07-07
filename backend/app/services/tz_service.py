@@ -60,10 +60,41 @@ def parse_datetime(raw: str) -> datetime | None:
 
     Returns a *naive* datetime (no tzinfo) on success — the caller decides
     what timezone to attach. Returns None if no known format matches.
+
+    Accepts:
+      - Bare formats like "2026-07-15T15:30" or "2026-07-15 15:30:00"
+        (matched against _DATETIME_FORMATS).
+      - ISO-8601 with explicit offset: "2026-07-15T15:30:00+05:00",
+        "2026-07-15T15:30:00Z", "2026-07-15T15:30+05:00" (matched via
+        datetime.fromisoformat, which handles `Z` natively on Python 3.11+).
+        The returned datetime is the local-naive component (the offset is
+        dropped — callers that need the original offset should use
+        `parse_datetime_aware` instead).
+      - Humanized strings like "Jul 15, 2026, 3:30 PM (CEST)" (parenthetical
+        tz abbreviation stripped via _strip_tz_suffix).
     """
     if not raw or not raw.strip():
         return None
     s = _strip_tz_suffix(raw)
+
+    # Try ISO-8601 first — handles +05:00 / Z offsets that the explicit
+    # format list can't. fromisoformat returns a tz-aware datetime when an
+    # offset is present; we strip the tzinfo so the rest of this module
+    # (which expects a naive datetime and re-attaches tz via _attach_tz)
+    # keeps working consistently.
+    try:
+        parsed = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        # Strip tzinfo so the caller can re-attach via _attach_tz. The
+        # original offset is implicitly handled: the caller passes the
+        # original `timezone` string from the client (e.g. "Europe/Berlin")
+        # and _attach_tz uses that. This is correct because the local-naive
+        # wall-clock time is what we want for double-booking detection.
+        if parsed.tzinfo is not None:
+            return parsed.replace(tzinfo=None)
+        return parsed
+    except ValueError:
+        pass
+
     for fmt in _DATETIME_FORMATS:
         try:
             return datetime.strptime(s, fmt)
@@ -87,6 +118,12 @@ def _attach_tz(dt: datetime, tz_name: str | None) -> datetime:
             pass
     # Default: assume the client meant PKT.
     return dt.replace(tzinfo=PKT)
+
+
+# Public alias (callers outside this module should use `attach_tz` rather
+# than the underscore-prefixed `_attach_tz` — keeps the API surface clean
+# and makes future refactors safer).
+attach_tz = _attach_tz
 
 
 def to_pkt(dt_aware: datetime) -> datetime:

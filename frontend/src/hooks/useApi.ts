@@ -185,23 +185,23 @@ export function useAdminAuth() {
       // 3) Backend is unreachable → grant a demo session.
       //
       // SECURITY: demo mode is gated behind VITE_ENABLE_DEMO_LOGIN=true OR
-      // localhost dev origins. In production deployments (where the backend
-      // is reachable), this branch never executes anyway because real auth
-      // succeeded above. The gate is a defence-in-depth: if an attacker
-      // somehow blocks the backend (DNS poisoning, etc.) on a prod domain,
-      // they should NOT be able to log in with arbitrary creds.
-      const isDevOrigin =
-        typeof window !== 'undefined' &&
-        (window.location.hostname === 'localhost' ||
-          window.location.hostname === '127.0.0.1' ||
-          window.location.hostname === 'preview');
+      // Vite's built-in dev flag (import.meta.env.DEV). In production builds
+      // DEV is always false, so the only way to enable demo mode in prod is
+      // to explicitly set VITE_ENABLE_DEMO_LOGIN=true at build time.
+      //
+      // The previous gate (`hostname === 'preview'`) was an arbitrary
+      // allow-list entry that did not correspond to a real production
+      // preview environment and could be triggered by DNS manipulation.
+      // The new gate uses Vite's compile-time DEV flag instead, which is
+      // evaluated at build time and cannot be spoofed at runtime.
+      const isDev = !!(import.meta as any).env?.DEV;
       const demoAllowed =
-        isDevOrigin ||
+        isDev ||
         (import.meta as any).env?.VITE_ENABLE_DEMO_LOGIN === 'true';
       if (!demoAllowed) {
         throw new Error(
           'Backend is unreachable and demo login is disabled. ' +
-            'Set VITE_ENABLE_DEMO_LOGIN=true or contact the site administrator.',
+            'Set VITE_ENABLE_DEMO_LOGIN=true at build time or contact the site administrator.',
         );
       }
 
@@ -306,9 +306,11 @@ export function useAdminData() {
   const [consultations, setConsultations] = useState<ApiConsultation[]>([]);
   const [allRatings, setAllRatings] = useState<ApiRating[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
+    setError(null);
     // Use allSettled so a single 401/timeout on one endpoint doesn't wipe
     // the other two. Each fulfilled promise sets its own slice of state.
     const results = await Promise.allSettled([
@@ -319,6 +321,13 @@ export function useAdminData() {
     if (results[0].status === 'fulfilled') setEnquiries(results[0].value);
     if (results[1].status === 'fulfilled') setConsultations(results[1].value);
     if (results[2].status === 'fulfilled') setAllRatings(results[2].value);
+    // Surface an error only if EVERY call failed — otherwise we still
+    // have partial data and the admin can keep working.
+    const allFailed = results.every((r) => r.status === 'rejected');
+    if (allFailed) {
+      const firstReason = (results[0] as PromiseRejectedResult).reason;
+      setError(firstReason?.message || 'Failed to load admin data');
+    }
     setLoading(false);
   }, []);
 
@@ -327,73 +336,154 @@ export function useAdminData() {
   }, [refreshAll]);
 
   /* ---- Mutations ---- */
+  // Optimistic-update pattern: capture the previous value BEFORE the
+  // optimistic write so we can restore it exactly on rollback. The old
+  // pattern (`!isAnswered`) was wrong because it flipped to the negation
+  // of the NEW value, not the previous value — which broke if the row
+  // was already in the new state (e.g. race with another tab).
   const toggleEnquiryAnswered = useCallback(async (id: string, isAnswered: boolean) => {
-    // Optimistic update
-    setEnquiries((prev) => prev.map((e) => (e.id === id ? { ...e, isAnswered } : e)));
+    let prevValue: boolean | undefined;
+    setEnquiries((prev) => {
+      const row = prev.find((e) => e.id === id);
+      prevValue = row?.isAnswered;
+      return prev.map((e) => (e.id === id ? { ...e, isAnswered } : e));
+    });
     try {
       const updated = await apiClient.updateEnquiry(id, { isAnswered });
       setEnquiries((prev) => prev.map((e) => (e.id === id ? updated : e)));
     } catch {
-      // Revert on failure
-      setEnquiries((prev) => prev.map((e) => (e.id === id ? { ...e, isAnswered: !isAnswered } : e)));
+      // Restore the exact previous value (not !isAnswered).
+      setEnquiries((prev) =>
+        prev.map((e) =>
+          e.id === id && prevValue !== undefined
+            ? { ...e, isAnswered: prevValue }
+            : e
+        )
+      );
     }
   }, []);
 
   const deleteEnquiry = useCallback(async (id: string) => {
-    setEnquiries((prev) => prev.filter((e) => e.id !== id));
+    // Capture the row before removing so we can restore it on failure.
+    let deletedRow: ApiEnquiry | undefined;
+    let deletedIndex = -1;
+    setEnquiries((prev) => {
+      deletedIndex = prev.findIndex((e) => e.id === id);
+      deletedRow = deletedIndex >= 0 ? prev[deletedIndex] : undefined;
+      return prev.filter((e) => e.id !== id);
+    });
     try {
       await apiClient.deleteEnquiry(id);
     } catch {
-      // Re-fetch on failure
-      refreshAll();
+      // Restore at the original position.
+      if (deletedRow && deletedIndex >= 0) {
+        setEnquiries((prev) => {
+          const next = [...prev];
+          next.splice(deletedIndex, 0, deletedRow!);
+          return next;
+        });
+      } else {
+        // Fallback: re-fetch from server.
+        refreshAll();
+      }
     }
   }, [refreshAll]);
 
   const toggleConsultationAnswered = useCallback(async (id: string, isAnswered: boolean) => {
-    setConsultations((prev) => prev.map((c) => (c.id === id ? { ...c, isAnswered } : c)));
+    let prevValue: boolean | undefined;
+    setConsultations((prev) => {
+      const row = prev.find((c) => c.id === id);
+      prevValue = row?.isAnswered;
+      return prev.map((c) => (c.id === id ? { ...c, isAnswered } : c));
+    });
     try {
       const updated = await apiClient.updateConsultation(id, { isAnswered });
       setConsultations((prev) => prev.map((c) => (c.id === id ? updated : c)));
     } catch {
-      setConsultations((prev) => prev.map((c) => (c.id === id ? { ...c, isAnswered: !isAnswered } : c)));
+      setConsultations((prev) =>
+        prev.map((c) =>
+          c.id === id && prevValue !== undefined
+            ? { ...c, isAnswered: prevValue }
+            : c
+        )
+      );
     }
   }, []);
 
   const deleteConsultation = useCallback(async (id: string) => {
-    setConsultations((prev) => prev.filter((c) => c.id !== id));
+    let deletedRow: ApiConsultation | undefined;
+    let deletedIndex = -1;
+    setConsultations((prev) => {
+      deletedIndex = prev.findIndex((c) => c.id === id);
+      deletedRow = deletedIndex >= 0 ? prev[deletedIndex] : undefined;
+      return prev.filter((c) => c.id !== id);
+    });
     try {
       await apiClient.deleteConsultation(id);
     } catch {
-      refreshAll();
+      if (deletedRow && deletedIndex >= 0) {
+        setConsultations((prev) => {
+          const next = [...prev];
+          next.splice(deletedIndex, 0, deletedRow!);
+          return next;
+        });
+      } else {
+        refreshAll();
+      }
     }
   }, [refreshAll]);
 
   const toggleRatingApproval = useCallback(async (id: string, isApproved: boolean) => {
-    setAllRatings((prev) => prev.map((r) => (r.id === id ? { ...r, isApproved } : r)));
+    let prevValue: boolean | undefined;
+    setAllRatings((prev) => {
+      const row = prev.find((r) => r.id === id);
+      prevValue = row?.isApproved;
+      return prev.map((r) => (r.id === id ? { ...r, isApproved } : r));
+    });
     try {
       const updated = await apiClient.updateRating(id, { isApproved });
       setAllRatings((prev) => prev.map((r) => (r.id === id ? updated : r)));
     } catch {
-      setAllRatings((prev) => prev.map((r) => (r.id === id ? { ...r, isApproved: !isApproved } : r)));
+      setAllRatings((prev) =>
+        prev.map((r) =>
+          r.id === id && prevValue !== undefined
+            ? { ...r, isApproved: prevValue }
+            : r
+        )
+      );
     }
   }, []);
 
   const deleteRating = useCallback(async (id: string) => {
-    setAllRatings((prev) => prev.filter((r) => r.id !== id));
+    let deletedRow: ApiRating | undefined;
+    let deletedIndex = -1;
+    setAllRatings((prev) => {
+      deletedIndex = prev.findIndex((r) => r.id === id);
+      deletedRow = deletedIndex >= 0 ? prev[deletedIndex] : undefined;
+      return prev.filter((r) => r.id !== id);
+    });
     try {
       await apiClient.deleteRating(id);
     } catch {
-      refreshAll();
+      if (deletedRow && deletedIndex >= 0) {
+        setAllRatings((prev) => {
+          const next = [...prev];
+          next.splice(deletedIndex, 0, deletedRow!);
+          return next;
+        });
+      } else {
+        refreshAll();
+      }
     }
   }, [refreshAll]);
 
   const saveStats = useCallback(async (patch: Partial<ApiSiteStats>) => {
-    try {
-      const updated = await apiClient.updateStats(patch);
-      return updated;
-    } catch (e) {
-      throw e;
-    }
+    // No try/catch here — let the caller decide how to handle errors.
+    // The previous `try { ... } catch (e) { throw e; }` was a no-op that
+    // added nothing. Callers MUST handle the rejection (e.g. show a toast
+    // and revert the optimistic counter change).
+    const updated = await apiClient.updateStats(patch);
+    return updated;
   }, []);
 
   return {
@@ -401,6 +491,7 @@ export function useAdminData() {
     consultations,
     allRatings,
     loading,
+    error,
     refreshAll,
     setEnquiries,
     setConsultations,

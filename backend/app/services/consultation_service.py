@@ -1,4 +1,6 @@
 """CRUD for Consultation."""
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models.consultation import Consultation
@@ -35,6 +37,11 @@ def create_consultation(db: Session, data: ConsultationCreate) -> dict:
       - rejects past / too-soon / too-far slots
       - rejects double-booking (same email + same slot within 5 min)
       - computes pkt_time server-side (ignoring any client-supplied pkt_time)
+
+    A DB-level UNIQUE constraint on (email, selected_date_time) backs up
+    the in-process double-booking check — if two concurrent requests race
+    past the SELECT, the second INSERT fails with IntegrityError and we
+    convert that to a 409 response.
     """
     # Normalize email to lowercase for both storage and lookup so the
     # double-booking check is case-insensitive. (Without this, a user who
@@ -47,12 +54,16 @@ def create_consultation(db: Session, data: ConsultationCreate) -> dict:
         .all()
         if normalized_email else []
     )
-    _aware_dt, pkt_time_str, _warnings = tz_service.validate_slot(
-        selected_date_time=data.selected_date_time,
-        timezone_name=data.timezone or None,
-        email=normalized_email,
-        existing=existing,
-    )
+    try:
+        _aware_dt, pkt_time_str, _warnings = tz_service.validate_slot(
+            selected_date_time=data.selected_date_time,
+            timezone_name=data.timezone or None,
+            email=normalized_email,
+            existing=existing,
+        )
+    except SlotValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.public_message)
+
     c = Consultation(
         name=data.name,
         email=normalized_email,
@@ -62,7 +73,16 @@ def create_consultation(db: Session, data: ConsultationCreate) -> dict:
         pkt_time=pkt_time_str,
     )
     db.add(c)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # DB-level unique constraint caught a race we missed in-process.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You already have a consultation booked at this time. "
+                   "Please pick a different slot or cancel the existing one.",
+        )
     db.refresh(c)
     # Fire admin notifications (email + WhatsApp) — best-effort
     try:
@@ -92,7 +112,7 @@ def update_consultation(db: Session, consultation_id: int, data: ConsultationUpd
         try:
             dt_naive = tz_service.parse_datetime(c.selected_date_time)
             if dt_naive is not None:
-                aware = tz_service._attach_tz(dt_naive, c.timezone or None)
+                aware = tz_service.attach_tz(dt_naive, c.timezone or None)
                 c.pkt_time = tz_service.format_pkt(aware)
         except Exception:
             pass  # best-effort; don't fail the update if pkt recompute fails

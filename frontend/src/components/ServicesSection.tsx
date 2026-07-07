@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { SERVICES, servicesData, DetailedService, PortfolioItem as DetailedPortfolioItem } from '../data/mockData';
+import { SERVICES, servicesData, DetailedService } from '../data/mockData';
 import { Service, PortfolioItem } from '../types';
 import { 
   Calculator, 
@@ -254,7 +254,14 @@ export default function ServicesSection({
     };
   }, [isDetailActive]);
 
-  // Preload all service images on mount to ensure smooth, instantaneous hover transitions
+  // Preload all service images on mount to ensure smooth, instantaneous hover transitions.
+  // We store the HTMLImageElement refs in a useRef (NOT on `window`) so they:
+  //   1. Don't leak across route changes (the previous code stored on
+  //      `window._preloadedImages` which survived forever and appended
+  //      duplicates on every StrictMode re-mount).
+  //   2. Are properly cleaned up on unmount (we clear `src` to release
+  //      the decoded image buffer).
+  const preloadedImagesRef = useRef<HTMLImageElement[]>([]);
   useEffect(() => {
     const imagesToPreload = [
       'https://xendoo.com/wp-content/uploads/2025/03/Accounting-Bookkeeping-Accordion.webp',
@@ -274,8 +281,12 @@ export default function ServicesSection({
       img.src = src;
       refs.push(img);
     });
-    // Store in global window reference to prevent GC and ensure instantaneous image swap
-    (window as any)._preloadedImages = refs;
+    preloadedImagesRef.current = refs;
+    return () => {
+      // Release the decoded image buffers by clearing src.
+      refs.forEach((img) => { img.src = ''; });
+      preloadedImagesRef.current = [];
+    };
   }, []);
 
   const selectService = (service: Service) => {

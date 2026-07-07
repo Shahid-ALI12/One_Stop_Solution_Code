@@ -353,19 +353,36 @@ export const apiClient = {
   },
 
   // ---- Public submissions ----
+  //
+  // CONVENTION: every apiClient.create* method accepts a camelCase payload
+  // (matching the Api* TypeScript interfaces in this file) and converts
+  // to the snake_case shape the backend Pydantic schemas expect. Callers
+  // should NEVER pass snake_case keys here — TypeScript will reject it
+  // once strict mode is enabled, and the conversion below would silently
+  // drop unknown keys.
   async createEnquiry(payload: Omit<ApiEnquiry, 'id' | 'isAnswered' | 'timestamp'>): Promise<ApiEnquiry> {
-    const { data } = await api.post('/enquiries/', payload);
+    const body = {
+      name: payload.name,
+      contact_method: payload.contactMethod,
+      contact_info: payload.contactInfo,
+      subject: payload.subject,
+      message: payload.message,
+      selected_service: payload.selectedService,
+      timezone: payload.timezone,
+    };
+    const { data } = await api.post('/enquiries/', body);
     return mapEnquiry(data);
   },
   async createConsultation(payload: Omit<ApiConsultation, 'id' | 'isAnswered' | 'timestamp'>): Promise<ApiConsultation> {
-    const { data } = await api.post('/consultations/', {
+    const body = {
       name: payload.name,
       email: payload.email,
       country: payload.country,
       selected_date_time: payload.selectedDateTime,
       timezone: payload.timezone,
       pkt_time: payload.pktTime,
-    });
+    };
+    const { data } = await api.post('/consultations/', body);
     return mapConsultation(data);
   },
   async createRating(payload: Omit<ApiRating, 'id'>): Promise<ApiRating> {
@@ -589,17 +606,18 @@ export const apiClient = {
   async uploadPortfolioImage(file: File): Promise<{ url: string; filename: string; size: number; content_type: string }> {
     const fd = new FormData();
     fd.append('file', file);
-    const { data } = await api.post('/uploads/portfolio', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // NOTE: do NOT set Content-Type manually — axios auto-sets it to
+    // 'multipart/form-data' WITH the correct `boundary=` parameter when
+    // given a FormData body. Manually overriding removes the boundary,
+    // causing the backend to fail to parse the multipart body.
+    const { data } = await api.post('/uploads/portfolio', fd);
     return data;
   },
   async uploadResourceFile(file: File): Promise<{ url: string; filename: string; size: number; content_type: string }> {
     const fd = new FormData();
     fd.append('file', file);
-    const { data } = await api.post('/uploads/resource', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    // See note above on Content-Type.
+    const { data } = await api.post('/uploads/resource', fd);
     return data;
   },
 

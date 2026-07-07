@@ -1,5 +1,7 @@
 """CRUD service for Service + nested SubService + PortfolioItem."""
 import json
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from app.models.service import Service, SubService, PortfolioItem
 from app.schemas.service import ServiceCreate, ServiceUpdate
@@ -92,6 +94,13 @@ def get_service_by_slug(db: Session, slug: str) -> dict | None:
 
 
 def create_service(db: Session, data: ServiceCreate) -> dict:
+    # Pre-check for duplicate slug (race-window-safe via IntegrityError catch below).
+    existing = db.query(Service).filter(Service.slug == data.slug).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A service with slug '{data.slug}' already exists.",
+        )
     svc = Service(
         slug=data.slug,
         name=data.name,
@@ -105,7 +114,14 @@ def create_service(db: Session, data: ServiceCreate) -> dict:
         sort_order=data.sort_order,
     )
     db.add(svc)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A service with slug '{data.slug}' already exists.",
+        )
     db.refresh(svc)
     return _to_response(svc)
 

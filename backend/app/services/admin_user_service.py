@@ -4,8 +4,10 @@ Safety rules enforced here:
   - Never delete the last active admin (prevents total lockout).
   - Never deactivate the last active admin.
   - Caller (route) is responsible for "don't delete/deactivate yourself".
+  - Duplicate-username race is backstopped by IntegrityError → ValueError.
 """
 from datetime import datetime, timezone
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.models.admin_user import AdminUser
 from app.schemas.admin_user import AdminUserCreate, AdminUserUpdate
@@ -51,7 +53,14 @@ def create_admin(db: Session, data: AdminUserCreate) -> dict:
         is_active=data.is_active,
     )
     db.add(u)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Race window: another request inserted the same username between
+        # our pre-check and commit. Convert to the same ValueError the
+        # pre-check would have raised.
+        db.rollback()
+        raise ValueError(f"Username '{data.username}' already exists")
     db.refresh(u)
     return _to_response(u)
 

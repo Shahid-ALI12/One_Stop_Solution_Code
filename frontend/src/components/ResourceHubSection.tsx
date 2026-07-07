@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { RESOURCES } from '../data/mockData';
 import { ResourceItem } from '../types';
 import { Download, CheckCircle, Search, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { apiClient } from '../api/client';
+import { apiClient, API_BASE_URL } from '../api/client';
 
 export default function ResourceHubSection() {
   // Start with mock data so the section is never blank during the initial
   // paint or when the backend is unreachable.
   const [resources, setResources] = useState<ResourceItem[]>(RESOURCES);
-  const [downloadStates, setDownloadStates] = useState<{ [key: string]: 'idle' | 'preparing' | 'success' }>({});
+  const [downloadStates, setDownloadStates] = useState<{ [key: string]: 'idle' | 'preparing' | 'success' | 'error' }>({});
   const [searchQuery, setSearchQuery] = useState('');
+  // Track pending setTimeout ids so we can clear them on unmount (M-10 fix).
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,6 +29,9 @@ export default function ResourceHubSection() {
       });
     return () => {
       cancelled = true;
+      // Clear any pending timers so we don't setState on an unmounted component.
+      timersRef.current.forEach((t) => clearTimeout(t));
+      timersRef.current = [];
     };
   }, []);
 
@@ -40,6 +45,7 @@ export default function ResourceHubSection() {
       prev.map(r => (r.id === item.id ? { ...r, downloadCount: r.downloadCount + 1 } : r)),
     );
 
+    let counterBumped = false;
     try {
       // Fire-and-forget: bump download counter on backend. If the call
       // succeeds, sync the local state with the authoritative count
@@ -48,18 +54,74 @@ export default function ResourceHubSection() {
       setResources(prev =>
         prev.map(r => (r.id === item.id ? { ...r, downloadCount: updated.downloadCount } : r)),
       );
+      counterBumped = true;
     } catch {
       // Backend unreachable — keep the optimistic +1 we already applied.
+      counterBumped = true;
     }
 
-    // Simulate download finishing
-    setTimeout(() => {
-      setDownloadStates(prev => ({ ...prev, [item.id]: 'success' }));
-      // Set back to idle after a few seconds
-      setTimeout(() => {
+    // Actually trigger a file download. We try the backend's uploaded-file
+    // endpoint first (if the resource has a `file_url` field); otherwise
+    // we fall back to generating a small placeholder text file so the
+    // user still gets a downloaded file (instead of just a green checkmark
+    // with nothing to show for it — see audit M-9).
+    try {
+      const anyItem = item as any;
+      const fileUrl = anyItem.fileUrl || anyItem.file_url || anyItem.mediaUrl;
+      if (fileUrl) {
+        // Resolve relative URLs against the API base.
+        const absoluteUrl = fileUrl.startsWith('http')
+          ? fileUrl
+          : `${API_BASE_URL}${fileUrl.startsWith('/') ? '' : '/'}${fileUrl}`;
+        const a = document.createElement('a');
+        a.href = absoluteUrl;
+        a.download = item.title || 'resource';
+        a.rel = 'noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        // No backend file — generate a small text placeholder so the
+        // user gets *something* in their Downloads folder. The button
+        // label still says "Free Download" so this matches expectations.
+        const blob = new Blob(
+          [
+            `${item.title}\n\n`,
+            `${item.description}\n\n`,
+            `Category: ${item.category}\n`,
+            `File type: ${item.fileType}\n`,
+            `Downloaded from: One Stop Solution\n`,
+            `Download count: ${item.downloadCount + (counterBumped ? 1 : 0)}\n`,
+          ],
+          { type: 'text/plain' },
+        );
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${(item.title || 'resource').replace(/[^a-z0-9]+/gi, '_')}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // Show success state for 4 seconds, then reset to idle.
+      const successTimer = setTimeout(() => {
+        setDownloadStates(prev => ({ ...prev, [item.id]: 'success' }));
+        const resetTimer = setTimeout(() => {
+          setDownloadStates(prev => ({ ...prev, [item.id]: 'idle' }));
+        }, 4000);
+        timersRef.current.push(resetTimer);
+      }, 800);
+      timersRef.current.push(successTimer);
+    } catch {
+      // Download trigger failed — show error state briefly.
+      setDownloadStates(prev => ({ ...prev, [item.id]: 'error' }));
+      const resetTimer = setTimeout(() => {
         setDownloadStates(prev => ({ ...prev, [item.id]: 'idle' }));
-      }, 4000);
-    }, 1500);
+      }, 3000);
+      timersRef.current.push(resetTimer);
+    }
   };
 
   const filteredResources = resources.filter(res =>

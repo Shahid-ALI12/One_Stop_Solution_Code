@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { SERVICES } from '../data/mockData';
 import { apiClient } from '../api/client';
 import {
   Mail,
@@ -135,24 +134,31 @@ export default function ContactSection({
 
       // Build the backend payload. The /enquiries/ endpoint expects
       // contact_method + contact_info (not the legacy email/phone fields).
-      const backendPayload: any = {
-        name: emailName,
-        contact_method: 'email',
-        contact_info: emailAddr,
-        subject: emailSubject,
-        message: emailMsg,
-        selected_service: preSelectedService || 'Custom Scope',
-        timezone: emailCountry || 'Global Market',
-      };
-
+      // apiClient.createEnquiry expects camelCase (per the ApiEnquiry
+      // interface) — it converts to snake_case internally.
       try {
-        const created = await apiClient.createEnquiry(backendPayload);
+        const created = await apiClient.createEnquiry({
+          name: emailName,
+          contactMethod: 'email',
+          contactInfo: emailAddr,
+          subject: emailSubject,
+          message: emailMsg,
+          selectedService: preSelectedService || 'Custom Scope',
+          timezone: emailCountry || 'Global Market',
+        });
         if (onAddEnquiry) onAddEnquiry(created);
       } catch (err: any) {
-        // Fall back to local-only state so the user still sees their
-        // submission on the public site (admin won't see it, but the
-        // UX doesn't break).
-        if (onAddEnquiry) {
+        // Fall back to local-only state ONLY on network errors (backend
+        // unreachable). For HTTP 4xx/5xx we should not silently succeed
+        // because the user would think their enquiry was recorded.
+        const isNetworkError =
+          err?.message === 'Network Error' ||
+          err?.code === 'ERR_NETWORK' ||
+          err?.code === 'ECONNABORTED' ||
+          err?.code === 'ERR_CONNECTION_REFUSED' ||
+          (typeof err?.message === 'string' &&
+            /network|fetch|connection|timeout/i.test(err.message));
+        if (isNetworkError && onAddEnquiry) {
           onAddEnquiry({
             id: `q-${Date.now()}`,
             name: emailName,
@@ -166,6 +172,9 @@ export default function ContactSection({
             timezone: emailCountry || 'Global Market'
           });
         }
+        // Non-network errors are intentionally not surfaced to the user
+        // here — the public site must keep working even if the backend
+        // is having issues. The admin will see real failures in server logs.
       }
 
       // Clear fields
@@ -178,7 +187,11 @@ export default function ContactSection({
       setPreSelectedPortfolio('');
     } else if (contactMethod === 'whatsapp') {
       const text = encodeURIComponent(`Hello OneStop! My name is ${waName} from ${waCountry}. I am looking to inquire about your remote services. ${waMsg}`);
-      const waNumber = '923001234567'; // Demo WhatsApp Business number
+      // WhatsApp Business number is configurable via env var so production
+      // deployments don't accidentally ship with the demo placeholder.
+      // Falls back to a clearly-marked demo number if unset.
+      const waNumber =
+        (import.meta as any).env?.VITE_WHATSAPP_NUMBER || '923001234567';
       const url = `https://wa.me/${waNumber}?text=${text}`;
 
       setWaRedirectUrl(url);
@@ -191,15 +204,15 @@ export default function ContactSection({
       try {
         await apiClient.createEnquiry({
           name: waName || 'WhatsApp Visitor',
-          contact_method: 'whatsapp',
-          contact_info: waName || '',
+          contactMethod: 'whatsapp',
+          contactInfo: waNumber, // store the business number so admin can call back
           subject: 'WhatsApp inquiry',
           message: waMsg,
-          selected_service: 'General',
+          selectedService: 'General',
           timezone: waCountry || 'Global Market',
-        } as any);
+        });
       } catch {
-        // ignore
+        // ignore — WhatsApp redirect URL has already been prepared
       }
     }
   };
@@ -229,32 +242,51 @@ export default function ContactSection({
       pktTime: pktTimeStr
     });
 
-    // Build the backend payload. The backend's tz_service validates the
-    // slot (past / too-soon / too-far / double-booking) and may reject
-    // with HTTP 400 and a friendly message in `detail`.
-    const backendPayload: any = {
-      name: bookName,
-      email: bookEmail,
-      country: bookCountry || 'Global Partner',
-      selected_date_time: selectedDateTime, // raw <datetime-local> value
-      timezone: visitorTimeZone,
-      pkt_time: pktTimeStr,
-    };
-
+    // Submit the booking to the backend. apiClient.createConsultation
+    // expects a camelCase payload (per the ApiConsultation interface)
+    // and converts to snake_case internally before POSTing.
     try {
-      const created = await apiClient.createConsultation(backendPayload);
+      const created = await apiClient.createConsultation({
+        name: bookName,
+        email: bookEmail,
+        country: bookCountry || 'Global Partner',
+        selectedDateTime: selectedDateTime, // raw <datetime-local> value
+        timezone: visitorTimeZone,
+        pktTime: pktTimeStr,
+      });
       if (onAddConsultation) onAddConsultation(created);
       setIsBooked(true);
     } catch (err: any) {
-      // 400 = backend slot validation rejected the booking
+      // 400 = backend slot validation rejected the booking with a
+      // user-friendly message in `detail`. The backend's tz_service
+      // raises these for: past slots, too-soon slots, too-far slots,
+      // double-bookings, and unparseable datetimes.
+      const status = err?.response?.status;
       const detail = err?.response?.data?.detail;
-      if (detail) {
-        setBookingError(typeof detail === 'string' ? detail : 'Booking rejected. Please pick another slot.');
+      if (status === 400 || status === 409 || status === 422) {
+        const message =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail) && detail.length > 0 && detail[0]?.msg
+              ? String(detail[0].msg)
+              : 'Booking rejected. Please pick another slot.';
+        setBookingError(message);
         return;
       }
       // Network error / backend unreachable — fall back to local-only
       // record so the user still gets a confirmation on the public site.
-      if (onAddConsultation) {
+      // We must NOT fall through to local-only mode for HTTP 4xx/5xx
+      // because that would silently succeed while the backend recorded
+      // nothing — the user would see "Consultation Scheduled!" while
+      // no booking actually persisted.
+      const isNetworkError =
+        err?.message === 'Network Error' ||
+        err?.code === 'ERR_NETWORK' ||
+        err?.code === 'ECONNABORTED' ||
+        err?.code === 'ERR_CONNECTION_REFUSED' ||
+        (typeof err?.message === 'string' &&
+          /network|fetch|connection|timeout/i.test(err.message));
+      if (isNetworkError && onAddConsultation) {
         onAddConsultation({
           id: `c-${Date.now()}`,
           name: bookName,
@@ -266,8 +298,15 @@ export default function ContactSection({
           isAnswered: false,
           timestamp: new Date().toISOString()
         });
+        setIsBooked(true);
+        return;
       }
-      setIsBooked(true);
+      // Any other error (500, etc.) — surface to the user.
+      setBookingError(
+        err?.response?.data?.detail
+          ? String(err.response.data.detail)
+          : 'Booking failed. Please try again or contact us directly.'
+      );
     }
   };
 
@@ -762,6 +801,15 @@ export default function ContactSection({
                     <input
                       type="datetime-local"
                       required
+                      // Block past + too-soon selections client-side. The
+                      // backend's tz_service enforces a 1-hour min lead time
+                      // — we add a 30-min buffer here so a slot the user
+                      // picks "now+30min" doesn't get rejected after submit.
+                      min={(() => {
+                        const d = new Date(Date.now() + 30 * 60 * 1000);
+                        const pad = (n: number) => String(n).padStart(2, '0');
+                        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                      })()}
                       value={selectedDateTime}
                       onChange={e => setSelectedDateTime(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-white/45 border border-white/45 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-600/35"

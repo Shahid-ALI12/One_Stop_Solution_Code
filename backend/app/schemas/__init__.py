@@ -10,6 +10,16 @@ from app.schemas.rating import RatingCreate, RatingUpdate, RatingResponse
 from app.schemas.resource import ResourceItemCreate, ResourceItemUpdate, ResourceItemResponse
 from app.schemas.team_member import TeamMemberCreate, TeamMemberUpdate, TeamMemberResponse
 from app.schemas.site_stats import SiteStatsUpdate, SiteStatsResponse
+from app.schemas.faq import FAQCreate, FAQUpdate, FAQResponse
+from app.schemas.certification import CertificationCreate, CertificationUpdate, CertificationResponse
+from app.schemas.contact_platform import (
+    ContactPlatformCreate, ContactPlatformUpdate, ContactPlatformResponse,
+)
+from app.schemas.upload import UploadResponse
+from app.schemas.admin_user import AdminUserCreate, AdminUserUpdate, AdminUserResponse
+from app.schemas.chatbot import ChatbotMessage, ChatbotReply
+from app.schemas.reorder import ReorderRequest
+from app.schemas.dashboard import DashboardResponse
 
 __all__ = [
     "UserCreate", "UserResponse",
@@ -23,4 +33,12 @@ __all__ = [
     "ResourceItemCreate", "ResourceItemUpdate", "ResourceItemResponse",
     "TeamMemberCreate", "TeamMemberUpdate", "TeamMemberResponse",
     "SiteStatsUpdate", "SiteStatsResponse",
+    "FAQCreate", "FAQUpdate", "FAQResponse",
+    "CertificationCreate", "CertificationUpdate", "CertificationResponse",
+    "ContactPlatformCreate", "ContactPlatformUpdate", "ContactPlatformResponse",
+    "UploadResponse",
+    "AdminUserCreate", "AdminUserUpdate", "AdminUserResponse",
+    "ChatbotMessage", "ChatbotReply",
+    "ReorderRequest",
+    "DashboardResponse",
 ]

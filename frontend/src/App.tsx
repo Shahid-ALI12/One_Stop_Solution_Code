@@ -17,8 +17,8 @@ import AdminDashboard from './components/AdminDashboard';
 import AdminLoginModal from './components/AdminLoginModal';
 import { useAdminAuth, useSiteData } from './hooks/useApi';
 import { apiClient } from './api/client';
-import { SERVICES, RATINGS, INITIAL_TEAM_MEMBERS, INITIAL_ENQUIRIES, INITIAL_CONSULTATIONS, INITIAL_SITE_STATS, INITIAL_RATINGS } from './data/mockData';
-import { Service, Enquiry, Consultation, Rating, PortfolioItem, TeamMember } from './types';
+import { SERVICES, INITIAL_TEAM_MEMBERS, INITIAL_ENQUIRIES, INITIAL_CONSULTATIONS, INITIAL_SITE_STATS, INITIAL_RATINGS } from './data/mockData';
+import { Service, Enquiry, Consultation, Rating, TeamMember } from './types';
 import TeamSection from './components/TeamSection';
 
 /**
@@ -40,9 +40,11 @@ function loadPersisted<T>(key: string, fallback: T): T {
     const raw = localStorage.getItem(PERSIST_PREFIX + key);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    // Defensive: if stored value is an array, ensure it's non-empty before
-    // trusting it (avoid restoring an accidental empty save).
-    if (Array.isArray(parsed) && parsed.length === 0) return fallback;
+    // NOTE: We intentionally do NOT discard empty arrays here. The previous
+    // behavior (`if (Array.isArray(parsed) && parsed.length === 0) return fallback`)
+    // defeated the legitimate "admin deleted everything" case — an admin who
+    // deleted all enquiries would see them re-appear from the seed fallback
+    // on the next page reload. Empty arrays from the backend are authoritative.
     return parsed as T;
   } catch {
     return fallback;
@@ -103,23 +105,35 @@ export default function App() {
   const [consultations, setConsultations] = useState<Consultation[]>(() => loadPersisted('consultations', INITIAL_CONSULTATIONS));
 
   // ── SYNC BACKEND → LOCAL STATE ───────────────────────────────────────
-  // Each block runs only when the backend actually returned non-empty
-  // data for that key, so we never wipe the seeded fallback with an empty
-  // array (which would happen on first load while the request is in flight).
+  // Backend data is authoritative whenever the request SUCCEEDED — including
+  // when it returned an empty array (e.g. admin deleted everything on the
+  // server). The previous logic skipped the overwrite on empty arrays, which
+  // meant deleted items kept re-appearing from the localStorage cache.
+  //
+  // We use `site.error` (set by useSiteData only when EVERY concurrent call
+  // failed) as the signal that the backend is unreachable. If error is null
+  // AND loading is false, we trust whatever the backend returned — even if
+  // it's an empty array.
   useEffect(() => {
-    if (site.services && site.services.length > 0) setServices(site.services as unknown as Service[]);
-  }, [site.services]);
+    if (!site.loading && !site.error) {
+      setServices(site.services as unknown as Service[]);
+    }
+  }, [site.services, site.loading, site.error]);
   useEffect(() => {
-    if (site.ratings && site.ratings.length > 0) setRatings(site.ratings as unknown as Rating[]);
-  }, [site.ratings]);
+    if (!site.loading && !site.error) {
+      setRatings(site.ratings as unknown as Rating[]);
+    }
+  }, [site.ratings, site.loading, site.error]);
   useEffect(() => {
-    if (site.teamMembers && site.teamMembers.length > 0) setTeamMembers(site.teamMembers as unknown as TeamMember[]);
-  }, [site.teamMembers]);
+    if (!site.loading && !site.error) {
+      setTeamMembers(site.teamMembers as unknown as TeamMember[]);
+    }
+  }, [site.teamMembers, site.loading, site.error]);
   useEffect(() => {
-    if (site.stats && (site.stats.clients > 0 || site.stats.orders > 0 || site.stats.countries > 0)) {
+    if (!site.loading && !site.error) {
       setStats(site.stats as any);
     }
-  }, [site.stats]);
+  }, [site.stats, site.loading, site.error]);
 
   // PERSISTENCE — mirror every state mutation back to localStorage so admin
   // edits (and the seeded mock data) survive page refresh, branch re-sync,

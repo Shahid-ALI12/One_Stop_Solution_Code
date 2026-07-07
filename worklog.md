@@ -39,3 +39,89 @@ Stage Summary:
 - PR URL: https://github.com/Ali-Raza-2111/One_Stop_Solution_Code/compare/main...Shahid-ALI12:One_Stop_Solution_Code:feat/backend-p2-features?quick_pull=1
 - PR body saved to /home/z/my-project/download/p2_pr_body.md
 - Note: This PR builds on feat/backend-p0-p1-fixes — should be merged AFTER P0-P1 PR
+
+---
+Task ID: P5-AUDIT-BACKEND
+Agent: sub-agent (general-purpose)
+Task: A-to-Z bug audit of the FastAPI backend at backend/ — read every file (config, db, admin_auth, dependencies, 12 models, 19 schemas, 19 routes, 22 services, main entrypoint, requirements.txt, pyproject.toml, .env.example); categorize all bugs by severity; write findings to scripts/p5_audit_backend.md. Do NOT fix anything.
+
+Work Log:
+- Read worklog.md to understand P0-P4 context (P2 added uploads, country flags, admin users, consultation slot validation; P1 added FAQs, certifications, contact platforms, dashboard, visits; P0 added the initial FastAPI skeleton + reorder guards).
+- Read every file in backend/app/ (models, schemas, routes, services, config, db, admin_auth, dependencies, main) plus backend/main.py, requirements.txt, pyproject.toml, .env.example.
+- Ran smoke test: `DATABASE_URL="sqlite:///./app.db" python -c "from app.main import app"` → IMPORT_OK, 80 routes registered. (Note: with the sandbox's default `DATABASE_URL=file:/...` env var the import fails with a confusing SQLAlchemy URL-parse error — recorded as bug M-11.)
+- AST-scanned all .py files under backend/app/ for unused imports; cross-checked by hand to filter false positives (re-exports in __init__.py, __future__ annotations, noqa-tagged side-effect imports).
+- Enumerated all @router decorators with their dependencies to verify route ordering and admin-guard coverage. Confirmed 0 duplicate (method, path) pairs and that every `/{id}` route is registered after literal keyword paths (`/reorder`, `/me`, `/by-country`, `/portfolio/reorder`).
+- Grepped for TODO/FIXME/XXX markers — none found.
+- Grepped for raw SQL / f-string SQL — none found (all ORM with bound params).
+- Wrote detailed Markdown report to scripts/p5_audit_backend.md containing:
+  * Summary table (0 CRITICAL, 8 HIGH, 12 MEDIUM, 25 LOW = 45 bugs total + 11 dead-import sites)
+  * One section per bug with file:line, description, severity, suggested fix
+  * Dead Code section (11 unused imports + User.password orphaned column + dead team_member_id constants in seed data)
+  * Prioritized Recommendations (P0 deploy-blockers → P4 cosmetic)
+  * Notes on what was verified clean (route ordering, JWT expiry, magic-byte coverage, path traversal, Pydantic v2 syntax, etc.)
+
+Key findings (HIGH severity):
+1. requirements.txt missing passlib/bcrypt/python-jose → app crashes on import if installed from requirements.txt
+2. pyproject.toml missing python-multipart → upload endpoints crash at runtime if installed via uv sync
+3. GET /faqs/ default active_only=False exposes inactive FAQs to public (no admin guard)
+4. GET /contact-platforms/ same pattern — exposes inactive platforms to public
+5. SECRET_KEY defaults to known insecure literal with no production validator
+6. Default admin credentials admin/admin123 with no production validator
+7. HTML injection in notification_service email bodies (unescaped user input in f-string HTML)
+8. No rate limiting on POST /auth/login (brute-force)
+
+Stage Summary:
+- Audit complete; report at scripts/p5_audit_backend.md (no code changes made — audit only).
+- 45 bugs catalogued with concrete fixes; 11 dead imports enumerated.
+- App imports cleanly and all 80 routes register without conflicts; route ordering is correct everywhere.
+- Recommend addressing the 8 HIGH-severity items before any production deploy.
+
+---
+Task ID: P5-AUDIT-FRONTEND
+Agent: sub-agent (general-purpose)
+Task: A-to-Z bug audit of the React+Vite+TypeScript frontend at frontend/ — read every file in src/ (api/client.ts, hooks/useApi.ts, App.tsx, main.tsx, index.css, types.ts, data/mockData.ts, all 16 components incl. admin/ subfolder) plus config (vite.config.ts, tsconfig.json, package.json, .env, index.html); categorize all bugs by severity; write findings to scripts/p5_audit_frontend.md. Do NOT fix anything.
+
+Work Log:
+- Read worklog.md to understand P0-P4 context (P0-P2 were backend work; P5-AUDIT-BACKEND already completed; this is the frontend counterpart).
+- Read every file under frontend/src/ (config, entry, types, api, hooks, data, 16 components incl. admin/ subfolder) plus frontend/{vite.config.ts,tsconfig.json,package.json,.env,index.html}.
+- Ran `npx tsc --noEmit` → exit 0 (because tsconfig has no strict mode — this is itself recorded as bug M-1).
+- Ran `npm run build` → succeeds, 1.13 MB JS chunk (gzip 318 KB), single vendor warning.
+- Grepped for TODO/FIXME/XXX/HACK → only one legitimate eslint-disable.
+- Grepped for dangerouslySetInnerHTML/innerHTML/eval/document.write → none.
+- Grepped for console.* → none.
+- Grepped for localhost/127.0.0.1 hardcodes → only in env-fallback and dev-origin check (acceptable).
+- Grepped for AbortController → none used (recorded as H-3).
+- Cross-checked import usage to find dead code: IndustriesSection.tsx is entirely orphaned; RATINGS, PortfolioItem, SERVICES, DetailedPortfolioItem are imported but never used.
+- Identified 55 bugs total: 3 CRITICAL, 12 HIGH, 22 MEDIUM, 18 LOW.
+- Wrote detailed Markdown report to scripts/p5_audit_frontend.md with summary table, per-bug sections (file:line, description, severity, suggested fix), dead-code section, build/tsc results, and prioritized recommendations (P0 deploy-blockers → P4 cosmetic).
+
+Key findings (CRITICAL):
+1. C-1: ContactSection passes snake_case payload to apiClient.createConsultation which destructures camelCase fields — `selected_date_time` and `pkt_time` silently become undefined, every consultation booking against a live backend fails to persist. Hidden by `any` cast.
+2. C-2: handleBookingSubmit treats ALL non-validation errors (incl. the 422 from C-1) as "fall back to local copy + show success" — user sees "Consultation Scheduled!" while backend recorded nothing.
+3. C-3: Demo-mode auth bypass mints a `demo:` JWT for any username/password when backend is unreachable from localhost / 127.0.0.1 / `preview` hostnames. The `preview` allow-list entry is arbitrary; no time-limit on demo token; no way to disable from backend.
+
+Key findings (HIGH):
+- H-1: createEnquiry has the same camelCase/snake_case type mismatch as C-1 (works today by luck).
+- H-2: useAdminAuth token-verify effect has empty deps, doesn't re-run on login.
+- H-3: No AbortController anywhere — StrictMode double-fetches every endpoint.
+- H-4: Optimistic-update rollback uses `!isAnswered` (new value) instead of capturing prev value.
+- H-5: Cross-tab storage sync uses JSON.stringify comparison on every storage event.
+- H-6: RecordSection IntersectionObserver has stale-closure over initialClients etc.
+- H-7: ServicesSection image-preload leaks 10+ Image objects into `window._preloadedImages` (StrictMode doubles it).
+- H-8: 401 interceptor has no refresh-token / retry queue — single expired JWT logs user out mid-action.
+- H-9: Admin delete buttons lack confirmation (only services + admin-users have confirm dialogs).
+- H-10: Optimistic deletes have no rollback on backend failure (row stays deleted in UI, exists on server).
+- H-11: Chatbot typing indicator has no min display time; double-Enter drops the second message.
+- H-12: saveStats has a dead try/catch and the caller silently swallows all errors.
+
+Notable build observations:
+- TypeScript exits 0 only because tsconfig omits `strict`, `noUnusedLocals`, `noImplicitAny` (recorded as M-1). Enabling strict mode is expected to surface 50+ errors and would have caught C-1.
+- Single 1.13 MB JS bundle — no code-splitting, no manualChunks (L-4).
+- IndustriesSection.tsx (266 lines) is orphaned — not imported anywhere (dead code).
+- AdminDashboard.tsx is 2,703 lines / 141 KB — should be split per tab (L-8).
+
+Stage Summary:
+- Audit complete; report at scripts/p5_audit_frontend.md (no code changes made — audit only).
+- 55 bugs catalogued with concrete fixes; 8 dead-code items enumerated.
+- Build succeeds; tsc passes (lax config); 1 chunk-size warning.
+- Recommend addressing the 3 CRITICAL items (C-1, C-2, C-3) and the 5 P0-strength HIGH items (H-1, H-9, H-10, H-12, plus enabling strict TS via M-1) before any production deploy.

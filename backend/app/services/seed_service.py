@@ -221,14 +221,47 @@ DEFAULT_ENQUIRIES = [
      "selected_service": "Catch-Up Bookkeeping", "timezone": "Pakistan (PKT)", "is_answered": True},
 ]
 
+def _relative_consultation(day_offset: int, hour: int, minute: int = 0) -> tuple[str, str]:
+    """Compute (selected_date_time, pkt_time) for a future slot `day_offset`
+    days from now at the given PKT hour:minute.
+
+    Returns strings formatted as the frontend / admin UI expects:
+      selected_date_time: "YYYY-MM-DDTHH:MM"
+      pkt_time:            "DD-Mon-YYYY HH:MM AM/PM (PKT)"
+    """
+    from app.services.tz_service import PKT, format_pkt
+    from datetime import datetime
+    now_pkt = datetime.now(PKT)
+    slot_pkt = now_pkt.replace(hour=hour, minute=minute, second=0, microsecond=0) \
+                + timedelta(days=day_offset)
+    return slot_pkt.strftime("%Y-%m-%dT%H:%M"), format_pkt(slot_pkt)
+
+
+# Placeholder — populated at module-import time below so seed data always
+# has future-dated consultations (avoids the "Jul 15, 2026" hardcoded dates
+# going stale and showing past consultations forever on the dashboard).
 DEFAULT_CONSULTATIONS = [
     {"name": "Marcus K.", "email": "m.keller@apex.com", "country": "Germany",
-     "selected_date_time": "Jul 15, 2026, 3:30 PM (CEST)", "timezone": "Europe/Berlin",
-     "pkt_time": "15-Jul-2026 6:30 PM (PKT)", "is_answered": False},
+     "selected_date_time": "", "timezone": "Europe/Berlin",
+     "pkt_time": "", "is_answered": False},
     {"name": "Saira Malik", "email": "saira@creativeagencies.com", "country": "Pakistan",
-     "selected_date_time": "Jul 18, 2026, 11:00 AM (PKT)", "timezone": "Asia/Karachi",
-     "pkt_time": "18-Jul-2026 11:00 AM (PKT)", "is_answered": True},
+     "selected_date_time": "", "timezone": "Asia/Karachi",
+     "pkt_time": "", "is_answered": True},
 ]
+
+
+def _init_consultation_dates() -> None:
+    """Fill in DEFAULT_CONSULTATIONS with future-dated slots computed
+    relative to import time. Called once at module load below."""
+    sdt1, pkt1 = _relative_consultation(day_offset=7, hour=15, minute=30)
+    sdt2, pkt2 = _relative_consultation(day_offset=14, hour=11, minute=0)
+    DEFAULT_CONSULTATIONS[0]["selected_date_time"] = sdt1
+    DEFAULT_CONSULTATIONS[0]["pkt_time"] = pkt1
+    DEFAULT_CONSULTATIONS[1]["selected_date_time"] = sdt2
+    DEFAULT_CONSULTATIONS[1]["pkt_time"] = pkt2
+
+
+_init_consultation_dates()
 
 DEFAULT_FAQS = [
     {"question": "What bookkeeping software do you support?",

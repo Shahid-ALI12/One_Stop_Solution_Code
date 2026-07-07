@@ -4,7 +4,7 @@ Each row = one page view. The `country` field is filled in by the
 visit-tracking middleware using IP→country geolocation (ipapi.co,
 free, no key required).
 """
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy.sql import func
 from app.db.database import Base
 

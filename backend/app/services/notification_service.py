@@ -5,18 +5,34 @@ submitted. Both channels are optional — if SMTP_HOST / TWILIO_*
 are empty, the relevant send_* function silently returns False
 without raising. This lets the backend run in dev mode without
 external services.
+
+Security: all user-supplied fields are HTML-escaped before being
+interpolated into the HTML body, to prevent stored HTML-injection /
+XSS-in-mail attacks (a visitor could submit name="<script>...</script>"
+and otherwise execute it in the admin's mail client).
 """
+import html
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from typing import Optional
 
 from app.config import settings
 
 
+def _esc(value) -> str:
+    """HTML-escape a value (None → '')."""
+    if value is None:
+        return ""
+    return html.escape(str(value))
+
+
 # ── Email (SMTP) ───────────────────────────────────────────────
 def send_email(to_addr: str, subject: str, html_body: str, text_body: str = "") -> bool:
-    """Send an email via SMTP. Returns True on success, False on failure."""
+    """Send an email via SMTP. Returns True on success, False on failure.
+
+    Supports both STARTTLS (port 587, default) and implicit-TLS SMTPS
+    (port 465). Silently returns False if SMTP_HOST is not configured.
+    """
     if not settings.SMTP_HOST or not to_addr:
         return False  # SMTP not configured — skip silently
 
@@ -29,11 +45,19 @@ def send_email(to_addr: str, subject: str, html_body: str, text_body: str = "") 
             msg.attach(MIMEText(text_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as srv:
-            srv.starttls()
-            if settings.SMTP_USER and settings.SMTP_PASSWORD:
-                srv.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            srv.sendmail(settings.SMTP_FROM, [to_addr], msg.as_string())
+        # Port 465 → implicit TLS (SMTPS). Any other port → STARTTLS upgrade.
+        if settings.SMTP_PORT == 465:
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT,
+                                  timeout=10) as srv:
+                if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                    srv.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                srv.sendmail(settings.SMTP_FROM, [to_addr], msg.as_string())
+        else:
+            with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as srv:
+                srv.starttls(context=smtplib.create_default_context())
+                if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                    srv.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+                srv.sendmail(settings.SMTP_FROM, [to_addr], msg.as_string())
         return True
     except Exception:
         # Don't raise — notifications are best-effort
@@ -63,17 +87,26 @@ def send_whatsapp(to_number: str, message: str) -> bool:
 # ── High-level notifications ───────────────────────────────────
 def notify_new_enquiry(enquiry: dict) -> None:
     """Fire all configured notifications when a new enquiry comes in."""
-    subject = f"[New Enquiry] {enquiry.get('subject', '(no subject)')}"
+    # Escape every user-supplied field before interpolating into HTML.
+    name           = _esc(enquiry.get('name', ''))
+    contact_method = _esc(enquiry.get('contact_method', ''))
+    contact_info   = _esc(enquiry.get('contact_info', ''))
+    selected_svc   = _esc(enquiry.get('selected_service', ''))
+    timezone       = _esc(enquiry.get('timezone', ''))
+    subject        = _esc(enquiry.get('subject', ''))
+    message        = _esc(enquiry.get('message', ''))
+
+    subject_line = f"[New Enquiry] {enquiry.get('subject', '(no subject)') or '(no subject)'}"
     html = f"""
     <h2>New enquiry received</h2>
     <table border="0" cellpadding="6" cellspacing="0">
-      <tr><td><b>Name:</b></td><td>{enquiry.get('name', '')}</td></tr>
-      <tr><td><b>Contact method:</b></td><td>{enquiry.get('contact_method', '')}</td></tr>
-      <tr><td><b>Contact info:</b></td><td>{enquiry.get('contact_info', '')}</td></tr>
-      <tr><td><b>Service:</b></td><td>{enquiry.get('selected_service', '')}</td></tr>
-      <tr><td><b>Timezone:</b></td><td>{enquiry.get('timezone', '')}</td></tr>
-      <tr><td><b>Subject:</b></td><td>{enquiry.get('subject', '')}</td></tr>
-      <tr><td><b>Message:</b></td><td>{enquiry.get('message', '')}</td></tr>
+      <tr><td><b>Name:</b></td><td>{name}</td></tr>
+      <tr><td><b>Contact method:</b></td><td>{contact_method}</td></tr>
+      <tr><td><b>Contact info:</b></td><td>{contact_info}</td></tr>
+      <tr><td><b>Service:</b></td><td>{selected_svc}</td></tr>
+      <tr><td><b>Timezone:</b></td><td>{timezone}</td></tr>
+      <tr><td><b>Subject:</b></td><td>{subject}</td></tr>
+      <tr><td><b>Message:</b></td><td>{message}</td></tr>
     </table>
     """
     text = (
@@ -88,7 +121,7 @@ def notify_new_enquiry(enquiry: dict) -> None:
     )
 
     if settings.ADMIN_NOTIFY_EMAIL:
-        send_email(settings.ADMIN_NOTIFY_EMAIL, subject, html, text)
+        send_email(settings.ADMIN_NOTIFY_EMAIL, subject_line, html, text)
 
     # WhatsApp only if client chose whatsapp OR admin wants all notifications there
     if settings.ADMIN_WHATSAPP_TO and enquiry.get("contact_method") == "whatsapp":
@@ -97,16 +130,28 @@ def notify_new_enquiry(enquiry: dict) -> None:
 
 def notify_new_consultation(consultation: dict) -> None:
     """Fire all configured notifications when a new consultation is booked."""
-    subject = f"[Consultation Booked] {consultation.get('name', '')} - {consultation.get('selected_date_time', '')}"
+    # Escape every user-supplied field before interpolating into HTML.
+    name        = _esc(consultation.get('name', ''))
+    email_addr  = _esc(consultation.get('email', ''))
+    country     = _esc(consultation.get('country', ''))
+    sdt         = _esc(consultation.get('selected_date_time', ''))
+    tz          = _esc(consultation.get('timezone', ''))
+    pkt_time    = _esc(consultation.get('pkt_time', ''))
+
+    subject_line = (
+        f"[Consultation Booked] "
+        f"{consultation.get('name', '')} - "
+        f"{consultation.get('selected_date_time', '')}"
+    )
     html = f"""
     <h2>New consultation booked</h2>
     <table border="0" cellpadding="6" cellspacing="0">
-      <tr><td><b>Name:</b></td><td>{consultation.get('name', '')}</td></tr>
-      <tr><td><b>Email:</b></td><td>{consultation.get('email', '')}</td></tr>
-      <tr><td><b>Country:</b></td><td>{consultation.get('country', '')}</td></tr>
-      <tr><td><b>Selected time (client tz):</b></td><td>{consultation.get('selected_date_time', '')}</td></tr>
-      <tr><td><b>Timezone:</b></td><td>{consultation.get('timezone', '')}</td></tr>
-      <tr><td><b>Pakistan time:</b></td><td>{consultation.get('pkt_time', '')}</td></tr>
+      <tr><td><b>Name:</b></td><td>{name}</td></tr>
+      <tr><td><b>Email:</b></td><td>{email_addr}</td></tr>
+      <tr><td><b>Country:</b></td><td>{country}</td></tr>
+      <tr><td><b>Selected time (client tz):</b></td><td>{sdt}</td></tr>
+      <tr><td><b>Timezone:</b></td><td>{tz}</td></tr>
+      <tr><td><b>Pakistan time:</b></td><td>{pkt_time}</td></tr>
     </table>
     """
     text = (
@@ -120,7 +165,7 @@ def notify_new_consultation(consultation: dict) -> None:
     )
 
     if settings.ADMIN_NOTIFY_EMAIL:
-        send_email(settings.ADMIN_NOTIFY_EMAIL, subject, html, text)
+        send_email(settings.ADMIN_NOTIFY_EMAIL, subject_line, html, text)
 
     if settings.ADMIN_WHATSAPP_TO:
         send_whatsapp(settings.ADMIN_WHATSAPP_TO, text)
