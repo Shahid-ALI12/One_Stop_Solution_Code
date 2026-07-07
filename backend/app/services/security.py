@@ -18,7 +18,15 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(subject: str, expires_minutes: int | None = None) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes or 60 * 24 * 7)
+    # Honour explicit override, otherwise fall back to settings.JWT_EXPIRES_DAYS.
+    # If neither is set, default to 7 days so dev mode keeps working out of the box.
+    if expires_minutes is not None:
+        minutes = expires_minutes
+    elif settings.JWT_EXPIRES_DAYS:
+        minutes = settings.JWT_EXPIRES_DAYS * 24 * 60
+    else:
+        minutes = 60 * 24 * 7  # 7 days
+    expire = datetime.now(timezone.utc) + timedelta(minutes=minutes)
     payload: dict[str, Any] = {"sub": subject, "exp": expire}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 

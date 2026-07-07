@@ -34,12 +34,22 @@ export default function ResourceHubSection() {
     // Set downloading state
     setDownloadStates(prev => ({ ...prev, [item.id]: 'preparing' }));
 
+    // Optimistically bump the local download counter so the user sees
+    // immediate feedback even if the backend is slow / unreachable.
+    setResources(prev =>
+      prev.map(r => (r.id === item.id ? { ...r, downloadCount: r.downloadCount + 1 } : r)),
+    );
+
     try {
-      // Fire-and-forget: bump download counter on backend
-      await apiClient.incrementResourceDownload(item.id);
+      // Fire-and-forget: bump download counter on backend. If the call
+      // succeeds, sync the local state with the authoritative count
+      // returned by the server (so we never drift).
+      const updated = await apiClient.incrementResourceDownload(item.id);
+      setResources(prev =>
+        prev.map(r => (r.id === item.id ? { ...r, downloadCount: updated.downloadCount } : r)),
+      );
     } catch {
-      // Backend unreachable — still show the success animation so the
-      // user sees their click registered.
+      // Backend unreachable — keep the optimistic +1 we already applied.
     }
 
     // Simulate download finishing
@@ -149,7 +159,7 @@ export default function ResourceHubSection() {
                       <div className="pt-4 border-t border-white/40 flex items-center justify-between">
                         <div className="text-[10px] font-mono text-slate-500">
                           <span className="block font-bold text-slate-800">{item.fileType}</span>
-                          <span className="block mt-0.5">{item.fileSize} • {item.downloadCount + (status === 'success' ? 1 : 0)} DLs</span>
+                          <span className="block mt-0.5">{item.fileSize} • {item.downloadCount} DLs</span>
                         </div>
 
                         <motion.button

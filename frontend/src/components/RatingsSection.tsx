@@ -131,10 +131,15 @@ export default function RatingsSection({ ratingsList, servicesList }: RatingsSec
                     className="glass-card p-6 flex flex-col justify-between hover:shadow-lg transition-all duration-500"
                   >
                     <div>
-                      {/* Stars list */}
+                      {/* Stars list — render based on actual rating (1-5). */}
                       <div className="flex items-center space-x-0.5 mb-4 text-amber-500">
                         {[...Array(5)].map((_, i) => (
-                          <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                          <Star
+                            key={i}
+                            className={`w-3.5 h-3.5 ${
+                              i < (item.ratingStars || 5) ? 'fill-current' : 'fill-none text-amber-300/40'
+                            }`}
+                          />
                         ))}
                       </div>
 

@@ -48,12 +48,39 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       setToken(null);
+      // Notify the auth hook so its `isAuthenticated` state resets
+      // immediately — without this the admin dashboard would stay mounted
+      // showing broken-data UI until the user manually refreshes.
+      try {
+        window.dispatchEvent(new CustomEvent('oss:auth-expired'));
+      } catch {
+        /* window may be undefined in SSR — ignore */
+      }
     }
     return Promise.reject(error);
   },
 );
 
 export default api;
+
+/* -------------------------------------------------------------
+ * Session ID — used for visit tracking. Generated once per
+ * browser session (persisted to localStorage so repeat visits
+ * by the same user within ~24h are correlated).
+ * ----------------------------------------------------------- */
+const SESSION_KEY = 'oss_session_id';
+function _getSessionId(): string {
+  try {
+    let sid = sessionStorage.getItem(SESSION_KEY);
+    if (!sid) {
+      sid = `s-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      sessionStorage.setItem(SESSION_KEY, sid);
+    }
+    return sid;
+  } catch {
+    return `s-${Date.now()}`;
+  }
+}
 
 /* -------------------------------------------------------------
  * Type definitions — match backend Pydantic schemas.
@@ -303,7 +330,9 @@ export const apiClient = {
     return data.map(mapRating);
   },
   async getAllRatings(): Promise<ApiRating[]> {
-    const { data } = await api.get('/ratings/');
+    // Admin-only: returns BOTH approved and unapproved ratings. The backend
+    // /ratings/?approved=all route requires a valid admin bearer token.
+    const { data } = await api.get('/ratings/', { params: { approved: 'all' } });
     return data.map(mapRating);
   },
   async getResources(): Promise<ApiResource[]> {
@@ -340,7 +369,15 @@ export const apiClient = {
     return mapConsultation(data);
   },
   async createRating(payload: Omit<ApiRating, 'id'>): Promise<ApiRating> {
-    const { data } = await api.post('/ratings/', payload);
+    // Convert camelCase payload → snake_case for the backend Pydantic schema
+    // (RatingCreate). Without this, fields like `serviceId` / `isApproved`
+    // would 422 against the backend's expected `service_id` / `is_approved`.
+    const body: any = {};
+    Object.entries(payload).forEach(([k, v]) => {
+      const snake = k.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
+      body[snake] = v;
+    });
+    const { data } = await api.post('/ratings/', body);
     return mapRating(data);
   },
 
@@ -454,6 +491,20 @@ export const apiClient = {
     await api.delete(`/services/${numericId}`);
   },
 
+  // ---- Portfolio items (admin CRUD, nested under services) ----
+  async createPortfolioItem(serviceId: string | number, payload: any): Promise<ApiPortfolioItem> {
+    const numericId = await resolveServiceId(serviceId);
+    const { data } = await api.post(`/services/${numericId}/portfolio`, payload);
+    return mapPortfolio(data);
+  },
+  async updatePortfolioItem(portfolioId: number, payload: any): Promise<ApiPortfolioItem> {
+    const { data } = await api.put(`/services/portfolio/${portfolioId}`, payload);
+    return mapPortfolio(data);
+  },
+  async deletePortfolioItem(portfolioId: number): Promise<void> {
+    await api.delete(`/services/portfolio/${portfolioId}`);
+  },
+
   // ---- FAQ ----
   async getFaqs(activeOnly: boolean = true): Promise<any[]> {
     const { data } = await api.get('/faqs/', { params: { active_only: activeOnly } });
@@ -517,6 +568,21 @@ export const apiClient = {
   async getVisitsByCountry(): Promise<any> {
     const { data } = await api.get('/visits/by-country');
     return data;
+  },
+  /**
+   * Fire-and-forget visit tracking — called once per page load on the public
+   * site. The backend records IP → country + path + timestamp and uses this
+   * to populate the Analytics tab in the admin dashboard. We swallow all
+   * errors so a dead analytics endpoint never breaks the public site.
+   */
+  async trackVisit(): Promise<void> {
+    try {
+      await api.post('/visits/', {}, {
+        headers: { 'X-Session-Id': _getSessionId() },
+      });
+    } catch {
+      /* analytics is best-effort */
+    }
   },
 
   // ---- Uploads (admin) ----

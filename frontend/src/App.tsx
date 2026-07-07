@@ -15,6 +15,7 @@ import Footer from './components/Footer';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLoginModal from './components/AdminLoginModal';
 import { useAdminAuth, useSiteData } from './hooks/useApi';
+import { apiClient } from './api/client';
 import { SERVICES, RATINGS, INITIAL_TEAM_MEMBERS, INITIAL_ENQUIRIES, INITIAL_CONSULTATIONS, INITIAL_SITE_STATS, INITIAL_RATINGS } from './data/mockData';
 import { Service, Enquiry, Consultation, Rating, PortfolioItem, TeamMember } from './types';
 import TeamSection from './components/TeamSection';
@@ -210,6 +211,16 @@ export default function App() {
     window.addEventListener('hashchange', checkAdminHash);
     return () => window.removeEventListener('hashchange', checkAdminHash);
   }, []);
+
+  // ── VISIT TRACKING ───────────────────────────────────────────────────
+  // Fire a single visit-tracking beacon on the public site mount. Skipped
+  // when the user is in the admin dashboard (admin's own visits shouldn't
+  // pollute the analytics). Best-effort: failures are swallowed inside
+  // trackVisit() so a dead analytics endpoint never breaks the public site.
+  useEffect(() => {
+    if (isAdminAuthenticated) return;
+    apiClient.trackVisit();
+  }, [isAdminAuthenticated]);
 
   // Scroll spy to highlight active menu section
   useEffect(() => {
