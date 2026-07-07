@@ -1,0 +1,6 @@
+{
+  "name": "OneStopOnlineServices",
+  "description": "Professional visitor-facing platform for bookkeeping, accounting, Microsoft Office automation, internal audit, and administrative support services.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
