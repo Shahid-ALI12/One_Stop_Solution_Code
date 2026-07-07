@@ -1,10 +1,47 @@
+import { useState, useEffect } from 'react';
 import { Shield, Mail, Phone, MapPin } from 'lucide-react';
+import { apiClient } from '../api/client';
 
 interface FooterProps {
   onNavigate: (sectionId: string) => void;
 }
 
+interface ContactPlatform {
+  id: number;
+  name: string;
+  icon: string;
+  profile_url: string;
+  display_order: number;
+  is_active: boolean;
+}
+
+const DEFAULT_PLATFORMS: ContactPlatform[] = [
+  { id: 1, name: 'Upwork Top Rated', icon: 'Upwork', profile_url: 'https://www.upwork.com', display_order: 1, is_active: true },
+  { id: 2, name: 'Fiverr Pro Verified', icon: 'Fiverr', profile_url: 'https://www.fiverr.com', display_order: 2, is_active: true },
+  { id: 3, name: 'LinkedIn Network', icon: 'Linkedin', profile_url: 'https://www.linkedin.com', display_order: 3, is_active: true },
+];
+
 export default function Footer({ onNavigate }: FooterProps) {
+  const [platforms, setPlatforms] = useState<ContactPlatform[]>(DEFAULT_PLATFORMS);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .getContactPlatforms(true)
+      .then((rows) => {
+        if (cancelled) return;
+        if (Array.isArray(rows) && rows.length > 0) {
+          setPlatforms(rows as ContactPlatform[]);
+        }
+      })
+      .catch(() => {
+        // Network error — keep default fallback.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const quickLinks = [
     { id: 'services', label: 'Services Catalog' },
     { id: 'portfolio', label: 'Portfolio Showcases' },
@@ -83,30 +120,17 @@ export default function Footer({ onNavigate }: FooterProps) {
               We operate secure escrow contracts on major international freelancing networks. Hire our specialists with 100% platform guarantees.
             </p>
             <div className="flex flex-wrap gap-2 pt-2">
-              <a
-                href="https://www.upwork.com"
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-white/60 border border-slate-200/80 hover:border-indigo-500/40 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-xl font-bold text-[10px] uppercase font-mono tracking-wider transition-all duration-300 shadow-sm"
-              >
-                Upwork Top Rated
-              </a>
-              <a
-                href="https://www.fiverr.com"
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-white/60 border border-slate-200/80 hover:border-indigo-500/40 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-xl font-bold text-[10px] uppercase font-mono tracking-wider transition-all duration-300 shadow-sm"
-              >
-                Fiverr Pro Verified
-              </a>
-              <a
-                href="https://www.linkedin.com"
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-white/60 border border-slate-200/80 hover:border-indigo-500/40 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-xl font-bold text-[10px] uppercase font-mono tracking-wider transition-all duration-300 shadow-sm"
-              >
-                LinkedIn Network
-              </a>
+              {platforms.map((p) => (
+                <a
+                  key={p.id}
+                  href={p.profile_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 bg-white/60 border border-slate-200/80 hover:border-indigo-500/40 hover:bg-indigo-50 hover:text-indigo-600 text-slate-700 rounded-xl font-bold text-[10px] uppercase font-mono tracking-wider transition-all duration-300 shadow-sm"
+                >
+                  {p.name}
+                </a>
+              ))}
             </div>
           </div>
 

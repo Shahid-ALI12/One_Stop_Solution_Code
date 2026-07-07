@@ -26,7 +26,10 @@ export interface AsyncState<T> {
 
 /* ------------------- useSiteData -------------------
  * Loads ALL public site data (services, ratings, resources,
- * team, stats) in parallel on mount. Used by the public site.
+ * team, stats, faqs, contact platforms) in parallel on mount.
+ * Used by the public site. If the backend is unreachable,
+ * the consuming component is responsible for falling back
+ * to its imported mockData defaults.
  */
 export function useSiteData() {
   const [services, setServices] = useState<ApiService[]>([]);
@@ -34,6 +37,8 @@ export function useSiteData() {
   const [resources, setResources] = useState<ApiResource[]>([]);
   const [teamMembers, setTeamMembers] = useState<ApiTeamMember[]>([]);
   const [stats, setStats] = useState<ApiSiteStats>({ clients: 0, orders: 0, countries: 0, label: '' });
+  const [faqs, setFaqs] = useState<any[]>([]);
+  const [contactPlatforms, setContactPlatforms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,18 +46,26 @@ export function useSiteData() {
     setLoading(true);
     setError(null);
     try {
-      const [s, r, res, t, st] = await Promise.all([
+      const results = await Promise.allSettled([
         apiClient.getServices(),
         apiClient.getApprovedRatings(),
         apiClient.getResources(),
         apiClient.getTeamMembers(),
         apiClient.getStats(),
+        apiClient.getFaqs(true),
+        apiClient.getContactPlatforms(true),
       ]);
-      setServices(s);
-      setRatings(r);
-      setResources(res);
-      setTeamMembers(t);
-      setStats(st);
+      if (results[0].status === 'fulfilled') setServices(results[0].value);
+      if (results[1].status === 'fulfilled') setRatings(results[1].value);
+      if (results[2].status === 'fulfilled') setResources(results[2].value);
+      if (results[3].status === 'fulfilled') setTeamMembers(results[3].value);
+      if (results[4].status === 'fulfilled') setStats(results[4].value);
+      if (results[5].status === 'fulfilled') setFaqs(results[5].value);
+      if (results[6].status === 'fulfilled') setContactPlatforms(results[6].value);
+      // Surface an error only if EVERY call failed — otherwise we still
+      // have partial data and the user can use the site.
+      const allFailed = results.every((r) => r.status === 'rejected');
+      if (allFailed) setError('Failed to load site data');
     } catch (e: any) {
       setError(e?.message || 'Failed to load site data');
     } finally {
@@ -70,10 +83,14 @@ export function useSiteData() {
     resources,
     teamMembers,
     stats,
+    faqs,
+    contactPlatforms,
     loading,
     error,
     refresh,
     setStats,
+    setFaqs,
+    setContactPlatforms,
   };
 }
 
@@ -168,6 +185,83 @@ export function useAdminAuth() {
   }, []);
 
   return { isAuthenticated, checking, login, logout };
+}
+
+/* ------------------- useDashboard -------------------
+ * Loads the aggregated dashboard analytics endpoint. Used by
+ * the AdminDashboard analytics tab so charts render from real
+ * backend data (visits by country, contact method breakdown,
+ * per-service rating distribution, totals).
+ */
+export function useDashboard() {
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiClient.getDashboard();
+      setDashboard(data);
+    } catch (e: any) {
+      // Likely 401/403 (not admin) or network error — keep silent.
+      setError(e?.message || 'Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { dashboard, loading, error, refresh };
+}
+
+/* ------------------- useAdminUsers -------------------
+ * Admin user management (CRUD). Used by the Admin Users tab.
+ */
+export function useAdminUsers() {
+  const [admins, setAdmins] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiClient.getAdminUsers();
+      setAdmins(data);
+    } catch (e: any) {
+      setError(e?.message || 'Failed to load admins');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const create = useCallback(async (payload: { username: string; password: string; display_name?: string; is_active?: boolean }) => {
+    const created = await apiClient.createAdminUser(payload);
+    setAdmins((prev) => [...prev, created]);
+    return created;
+  }, []);
+
+  const update = useCallback(async (id: number, patch: any) => {
+    const updated = await apiClient.updateAdminUser(id, patch);
+    setAdmins((prev) => prev.map((a) => (a.id === id ? updated : a)));
+    return updated;
+  }, []);
+
+  const remove = useCallback(async (id: number) => {
+    await apiClient.deleteAdminUser(id);
+    setAdmins((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  return { admins, loading, error, refresh, create, update, remove };
 }
 
 /* ------------------- useAdminData -------------------

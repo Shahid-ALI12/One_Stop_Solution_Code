@@ -1,16 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { RESOURCES } from '../data/mockData';
 import { ResourceItem } from '../types';
 import { Download, CheckCircle, Search, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { apiClient } from '../api/client';
 
 export default function ResourceHubSection() {
+  // Start with mock data so the section is never blank during the initial
+  // paint or when the backend is unreachable.
+  const [resources, setResources] = useState<ResourceItem[]>(RESOURCES);
   const [downloadStates, setDownloadStates] = useState<{ [key: string]: 'idle' | 'preparing' | 'success' }>({});
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleDownload = (item: ResourceItem) => {
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .getResources()
+      .then((rows) => {
+        if (cancelled) return;
+        if (Array.isArray(rows) && rows.length > 0) {
+          setResources(rows as unknown as ResourceItem[]);
+        }
+      })
+      .catch(() => {
+        // Network error — keep mock data fallback.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleDownload = async (item: ResourceItem) => {
     // Set downloading state
     setDownloadStates(prev => ({ ...prev, [item.id]: 'preparing' }));
+
+    try {
+      // Fire-and-forget: bump download counter on backend
+      await apiClient.incrementResourceDownload(item.id);
+    } catch {
+      // Backend unreachable — still show the success animation so the
+      // user sees their click registered.
+    }
 
     // Simulate download finishing
     setTimeout(() => {
@@ -22,7 +52,7 @@ export default function ResourceHubSection() {
     }, 1500);
   };
 
-  const filteredResources = RESOURCES.filter(res =>
+  const filteredResources = resources.filter(res =>
     res.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     res.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
     res.description.toLowerCase().includes(searchQuery.toLowerCase())

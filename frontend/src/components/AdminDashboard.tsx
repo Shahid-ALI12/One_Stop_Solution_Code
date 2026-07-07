@@ -40,7 +40,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { Service, PortfolioItem, Enquiry, Consultation, Rating, TeamMember } from '../types';
-import { useAdminData } from '../hooks/useApi';
+import { useAdminData, useDashboard, useAdminUsers } from '../hooks/useApi';
 
 interface AdminDashboardProps {
   services?: Service[];
@@ -58,13 +58,26 @@ interface AdminDashboardProps {
   onUpdateTeamMembers?: (updated: TeamMember[]) => void;
 }
 
-type ActiveTab = 'analytics' | 'services' | 'reviews' | 'team' | 'contacts';
+type ActiveTab = 'analytics' | 'services' | 'reviews' | 'team' | 'contacts' | 'admin-users';
 
 export default function AdminDashboard(props: AdminDashboardProps) {
   const { onLogout } = props;
 
   // ----- Backend-backed admin data -----
   const admin = useAdminData();
+  // Aggregated analytics (visits by country, contact method breakdown,
+  // per-service rating distribution). When the backend is reachable and
+  // we're authenticated, this populates the Analytics tab with real data.
+  const dashboard = useDashboard();
+  // Admin user management (CRUD).
+  const adminUsers = useAdminUsers();
+
+  // ----- New Admin form state -----
+  const [showNewAdminForm, setShowNewAdminForm] = useState(false);
+  const [newAdminUsername, setNewAdminUsername] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminDisplayName, setNewAdminDisplayName] = useState('');
+  const [adminFormError, setAdminFormError] = useState<string | null>(null);
 
   // ----- Internal state mirrors so existing component code keeps working -----
   // Initialize from props; App.tsx now seeds these with mock data so the
@@ -149,6 +162,48 @@ export default function AdminDashboard(props: AdminDashboardProps) {
   // ==========================================
   // VIEW A STATES & COMPARTMENTS (Analytics)
   // ==========================================
+  // When the backend dashboard endpoint returns real data, we hydrate the
+  // analytics tab with it. Otherwise we keep the mock defaults so the
+  // dashboard is never blank during preview/offline mode.
+  useEffect(() => {
+    if (!dashboard.dashboard) return;
+    const d = dashboard.dashboard;
+    if (Array.isArray(d.visits_by_country) && d.visits_by_country.length > 0) {
+      setCountryList(d.visits_by_country.map((v: any) => ({
+        name: v.country,
+        code: v.country_code || 'XX',
+        visits: v.visits,
+      })));
+    }
+    if (Array.isArray(d.contact_method_breakdown) && d.contact_method_breakdown.length > 0) {
+      const total = d.contact_method_breakdown.reduce((sum: number, m: any) => sum + (m.count || 0), 0) || 1;
+      const email = d.contact_method_breakdown.find((m: any) => m.method === 'email');
+      const whatsapp = d.contact_method_breakdown.find((m: any) => m.method === 'whatsapp');
+      const other = d.contact_method_breakdown.find((m: any) => m.method === 'other');
+      setConversionStats({
+        email: email ? Math.round((email.count / total) * 100) : 0,
+        whatsapp: whatsapp ? Math.round((whatsapp.count / total) * 100) : 0,
+        alternative: other ? Math.round((other.count / total) * 100) : 0,
+      });
+    }
+    if (Array.isArray(d.service_wise_ratings) && d.service_wise_ratings.length > 0) {
+      setDomainRatings(d.service_wise_ratings.map((s: any) => ({
+        domain: s.service_name,
+        score: s.average,
+      })));
+      // Aggregate stars histogram across all services
+      const hist = { fiveStar: 0, fourStar: 0, threeStar: 0, twoStar: 0, oneStar: 0 };
+      for (const s of d.service_wise_ratings) {
+        hist.fiveStar += s.five_star || 0;
+        hist.fourStar += s.four_star || 0;
+        hist.threeStar += s.three_star || 0;
+        hist.twoStar += s.two_star || 0;
+        hist.oneStar += s.one_star || 0;
+      }
+      setStarsHistogram(hist);
+    }
+  }, [dashboard.dashboard]);
+
   const [countrySearch, setCountrySearch] = useState('');
   const [countryList, setCountryList] = useState([
     { name: 'United States', code: 'US', visits: 450 },
@@ -876,7 +931,8 @@ export default function AdminDashboard(props: AdminDashboardProps) {
               { id: 'services', label: 'Services & Portfolios', icon: Briefcase, color: 'text-sky-400' },
               { id: 'reviews', label: 'Client Feedback Hub', icon: StarHalf, color: 'text-amber-400' },
               { id: 'team', label: 'Team & Badges', icon: UserPlus, color: 'text-emerald-400' },
-              { id: 'contacts', label: 'Contact Channels', icon: Globe2, color: 'text-rose-400' }
+              { id: 'contacts', label: 'Contact Channels', icon: Globe2, color: 'text-rose-400' },
+              { id: 'admin-users', label: 'Admin Users', icon: Shield, color: 'text-purple-400' }
             ].map(tab => {
               const IconComp = tab.icon;
               const isActive = activeTab === tab.id;
@@ -941,6 +997,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
               {activeTab === 'reviews' && 'Client Feedback Hub & Testimony Control'}
               {activeTab === 'team' && 'Team Badges & Corporate Employee Onboarding'}
               {activeTab === 'contacts' && 'Contact Channels & PKT Booking Translation'}
+              {activeTab === 'admin-users' && 'Admin User Management'}
             </h1>
             <p className="text-sm text-slate-400 mt-1">
               {activeTab === 'analytics' && 'Review client geographic coverage, live SVG conversion shares, and star metrics.'}
@@ -948,6 +1005,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
               {activeTab === 'reviews' && 'Moderate customer testimonials, flag overlays, and custom priority sorting.'}
               {activeTab === 'team' && 'Onboard specialists, shuffle grid priorities, and dynamically append certification badges.'}
               {activeTab === 'contacts' && 'Configure custom routing nodes, and simulate Pakistan Standard Time timezone translations.'}
+              {activeTab === 'admin-users' && 'Create, activate, deactivate, or remove administrator accounts.'}
             </p>
           </div>
 
@@ -2315,6 +2373,170 @@ export default function AdminDashboard(props: AdminDashboardProps) {
                   </div>
                 </div>
 
+              </div>
+            )}
+
+            {/* ============================================================
+                TAB: ADMIN USERS
+                Manage admin accounts (CRUD) via the /admin-users endpoints.
+                Safety guards enforced by the backend: cannot delete self,
+                cannot delete/deactivate last active admin.
+            ============================================================ */}
+            {activeTab === 'admin-users' && (
+              <div className="space-y-6">
+                {/* Header summary */}
+                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-white font-sans">Administrator Accounts</h3>
+                      <p className="text-[11px] text-slate-400 font-sans mt-1">
+                        Active admins can log in to this dashboard. Backend guards prevent deleting the last active admin or self-deactivation.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowNewAdminForm((v) => !v)}
+                      className="px-3 py-2 bg-indigo-500/15 hover:bg-indigo-500/30 text-indigo-300 hover:text-white rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 border border-indigo-500/20"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      New Admin
+                    </button>
+                  </div>
+
+                  {/* New admin inline form */}
+                  {showNewAdminForm && (
+                    <div className="mt-5 pt-5 border-t border-white/10 grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Username"
+                        value={newAdminUsername}
+                        onChange={(e) => setNewAdminUsername(e.target.value)}
+                        className="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
+                      />
+                      <input
+                        type="password"
+                        placeholder="Password"
+                        value={newAdminPassword}
+                        onChange={(e) => setNewAdminPassword(e.target.value)}
+                        className="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Display name (optional)"
+                        value={newAdminDisplayName}
+                        onChange={(e) => setNewAdminDisplayName(e.target.value)}
+                        className="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!newAdminUsername || !newAdminPassword) {
+                            setAdminFormError('Username and password are required');
+                            return;
+                          }
+                          if (newAdminPassword.length < 6) {
+                            setAdminFormError('Password must be at least 6 characters');
+                            return;
+                          }
+                          setAdminFormError(null);
+                          try {
+                            await adminUsers.create({
+                              username: newAdminUsername,
+                              password: newAdminPassword,
+                              display_name: newAdminDisplayName || undefined,
+                              is_active: true,
+                            });
+                            setShowNewAdminForm(false);
+                            setNewAdminUsername('');
+                            setNewAdminPassword('');
+                            setNewAdminDisplayName('');
+                          } catch (err: any) {
+                            const detail = err?.response?.data?.detail;
+                            setAdminFormError(typeof detail === 'string' ? detail : 'Failed to create admin');
+                          }
+                        }}
+                        className="bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 hover:text-white rounded-xl px-3 py-2 text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-1.5 border border-emerald-500/30"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        Create
+                      </button>
+                      {adminFormError && (
+                        <div className="md:col-span-4 text-[11px] text-rose-400 font-sans flex items-center gap-1.5">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          {adminFormError}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Admins list */}
+                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl">
+                  {adminUsers.loading && adminUsers.admins.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-slate-500 font-mono">Loading admins…</div>
+                  ) : adminUsers.admins.length === 0 ? (
+                    <div className="text-center py-8 text-xs text-slate-500 font-mono">
+                      No admins found. Backend may be unreachable (running in demo mode).
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {adminUsers.admins.map((a: any) => (
+                        <div
+                          key={a.id}
+                          className="flex items-center justify-between bg-slate-950/60 border border-white/5 rounded-2xl px-4 py-3"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center">
+                              <Shield className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-white font-sans">
+                                {a.display_name || a.username}
+                                <span className="ml-2 text-[10px] font-mono text-slate-500">@{a.username}</span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                ID #{a.id} • {a.is_active ? 'Active' : 'Inactive'}
+                                {a.last_login_at && ` • Last login: ${new Date(a.last_login_at).toLocaleString()}`}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await adminUsers.update(a.id, { is_active: !a.is_active });
+                                } catch (err: any) {
+                                  const detail = err?.response?.data?.detail;
+                                  alert(typeof detail === 'string' ? detail : 'Failed to update admin');
+                                }
+                              }}
+                              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-mono transition-colors cursor-pointer ${
+                                a.is_active
+                                  ? 'bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 hover:text-white border border-amber-500/20'
+                                  : 'bg-emerald-500/15 hover:bg-emerald-500/30 text-emerald-300 hover:text-white border border-emerald-500/20'
+                              }`}
+                            >
+                              {a.is_active ? 'Deactivate' : 'Activate'}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Delete admin @${a.username}? This action cannot be undone.`)) return;
+                                try {
+                                  await adminUsers.remove(a.id);
+                                } catch (err: any) {
+                                  const detail = err?.response?.data?.detail;
+                                  alert(typeof detail === 'string' ? detail : 'Failed to delete admin');
+                                }
+                              }}
+                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-lg transition-colors cursor-pointer"
+                              title="Delete admin"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
