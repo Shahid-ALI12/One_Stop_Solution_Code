@@ -5,6 +5,7 @@ from app.dependencies import get_db
 from app.admin_auth import require_admin
 from app.schemas.consultation import ConsultationCreate, ConsultationUpdate, ConsultationResponse
 from app.services import consultation_service
+from app.services.tz_service import SlotValidationError
 
 router = APIRouter(prefix="/consultations", tags=["Consultations"])
 
@@ -16,8 +17,15 @@ def list_consultations(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=ConsultationResponse, status_code=status.HTTP_201_CREATED)
 def create_consultation(body: ConsultationCreate, db: Session = Depends(get_db)):
-    """Public endpoint — visitors book consultations."""
-    return consultation_service.create_consultation(db, body)
+    """Public endpoint — visitors book consultations.
+
+    Returns 400 with a human-readable message when the requested slot
+    fails validation (past, too soon, too far, or double-booked).
+    """
+    try:
+        return consultation_service.create_consultation(db, body)
+    except SlotValidationError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=e.public_message)
 
 
 @router.put("/{consultation_id}", response_model=ConsultationResponse, dependencies=[Depends(require_admin)])

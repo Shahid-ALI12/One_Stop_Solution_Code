@@ -2,6 +2,7 @@
 from sqlalchemy.orm import Session
 from app.models.rating import Rating
 from app.schemas.rating import RatingCreate, RatingUpdate
+from app.services.country_flag import flag_url
 
 
 def _to_response(r: Rating) -> dict:
@@ -28,6 +29,20 @@ def list_ratings(db: Session, only_approved: bool = False) -> list[dict]:
     return [_to_response(r) for r in rows]
 
 
+def _resolve_avatar(data: RatingCreate) -> str:
+    """Return the avatar URL to use. If caller supplied one, keep it.
+    Otherwise derive one from the country flag (flagcdn.com).
+    Falls back to an empty string if country is unknown.
+    """
+    if data.avatar_url and data.avatar_url.strip():
+        return data.avatar_url.strip()
+    if data.country and data.country.strip():
+        url = flag_url(data.country)
+        if url:
+            return url
+    return ""
+
+
 def create_rating(db: Session, data: RatingCreate) -> dict:
     r = Rating(
         service_id=data.service_id,
@@ -35,7 +50,7 @@ def create_rating(db: Session, data: RatingCreate) -> dict:
         designation=data.designation,
         company=data.company,
         country=data.country,
-        avatar_url=data.avatar_url,
+        avatar_url=_resolve_avatar(data),
         comment=data.comment,
         rating_stars=data.rating_stars,
         is_approved=data.is_approved,

@@ -1,12 +1,16 @@
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.db.database import create_tables, SessionLocal
 from app.routes import (
     health, users, auth, services, enquiries, consultations,
     ratings, resources, team_members, stats, seed,
     faqs, certifications, contact_platforms, dashboard, visits,
+    uploads, admin_users,
 )
 from app.services import seed_service
 
@@ -15,6 +19,8 @@ from app.services import seed_service
 async def lifespan(app: FastAPI):
     # Create DB tables on startup
     create_tables()
+    # Ensure the uploads directory exists so StaticFiles can mount safely
+    Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
     # Auto-seed if DB is empty (idempotent)
     db = SessionLocal()
     try:
@@ -60,6 +66,14 @@ def create_app() -> FastAPI:
     app.include_router(contact_platforms.router)
     app.include_router(dashboard.router)
     app.include_router(visits.router)
+    # P2 routers
+    app.include_router(uploads.router)
+    app.include_router(admin_users.router)
+
+    # Serve uploaded files at /uploads/{category}/{filename}
+    upload_path = Path(settings.UPLOAD_DIR).resolve()
+    upload_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=str(upload_path)), name="uploads")
 
     @app.get("/", tags=["Root"])
     def root():
@@ -74,6 +88,8 @@ def create_app() -> FastAPI:
                 "/seed/", "/seed/status",
                 "/faqs/", "/certifications/", "/contact-platforms/",
                 "/stats/dashboard", "/visits/", "/visits/by-country",
+                "/uploads/portfolio", "/uploads/resource",
+                "/admin-users/", "/admin-users/me",
             ],
         }
 
