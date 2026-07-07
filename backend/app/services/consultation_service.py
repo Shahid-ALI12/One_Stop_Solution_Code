@@ -1,6 +1,6 @@
 """CRUD for Consultation."""
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 from app.models.consultation import Consultation
 from app.schemas.consultation import ConsultationCreate, ConsultationUpdate
 from app.services import notification_service
@@ -40,11 +40,14 @@ def create_consultation(db: Session, data: ConsultationCreate) -> dict:
     layer catches this and returns a 400 with the public message.
     """
     # Fetch existing consultations for this email to detect double-bookings.
+    # Use case-insensitive match (func.lower) so 'User@X.com' matches 'user@x.com'
+    # stored in DB. SQLite's default `==` is case-sensitive for non-ASCII.
+    norm_email = data.email.strip().lower() if data.email else ""
     existing = (
         db.query(Consultation)
-        .filter(Consultation.email == data.email.strip().lower())
+        .filter(func.lower(Consultation.email) == norm_email)
         .all()
-        if data.email
+        if norm_email
         else []
     )
 

@@ -16,9 +16,11 @@ import re
 # ── Canonical country name → ISO alpha-2 ─────────────────────────────────
 # Curated to cover all countries appearing in the seed data + the most
 # common client countries for an accounting outsourcing business.
+# Keys here are already in their NORMALIZED form (lowercase, punctuation
+# collapsed to single space) so they match output of normalize_country().
 _COUNTRY_TO_CODE: dict[str, str] = {
     # North America
-    "united states":      "us",  "usa": "us",  "u.s.a.": "us",  "us": "us",
+    "united states":      "us",  "usa": "us",  "u s a": "us",  "us": "us",
     "united states of america": "us",
     "canada":             "ca",
     "mexico":             "mx",
@@ -26,73 +28,73 @@ _COUNTRY_TO_CODE: dict[str, str] = {
     "brazil":             "br",  "argentina": "ar",  "chile": "cl",
     "colombia":           "co",  "peru": "pe",  "venezuela": "ve",
     # Europe
-    "united kingdom":     "gb",  "uk": "gb",  "u.k.": "gb",  "britain": "gb",
+    "united kingdom":     "gb",  "uk": "gb",  "u k": "gb",  "britain": "gb",
     "great britain":      "gb",  "england": "gb",  "scotland": "gb",  "wales": "gb",
-    "germany":            "de",
-    "france":             "fr",
-    "spain":              "es",
-    "italy":              "it",
-    "netherlands":        "nl",  "holland": "nl",
-    "belgium":            "be",
-    "switzerland":        "ch",
-    "austria":            "at",
-    "sweden":             "se",
-    "norway":             "no",
-    "denmark":            "dk",
-    "finland":            "fi",
-    "ireland":            "ie",
-    "portugal":           "pt",
-    "greece":             "gr",
-    "poland":             "pl",
-    "czech republic":     "cz",  "czechia": "cz",
-    "romania":            "ro",
-    "hungary":            "hu",
-    "ukraine":            "ua",
-    "russia":             "ru",
+    "germany":            "de",  "de": "de",  # accept 'DE' as both code + name
+    "france":             "fr",  "fr": "fr",
+    "spain":              "es",  "es": "es",
+    "italy":              "it",  "it": "it",
+    "netherlands":        "nl",  "holland": "nl",  "nl": "nl",
+    "belgium":            "be",  "be": "be",
+    "switzerland":        "ch",  "ch": "ch",
+    "austria":            "at",  "at": "at",
+    "sweden":             "se",  "se": "se",
+    "norway":             "no",  "no": "no",
+    "denmark":            "dk",  "dk": "dk",
+    "finland":            "fi",  "fi": "fi",
+    "ireland":            "ie",  "ie": "ie",
+    "portugal":           "pt",  "pt": "pt",
+    "greece":             "gr",  "gr": "gr",
+    "poland":             "pl",  "pl": "pl",
+    "czech republic":     "cz",  "czechia": "cz",  "cz": "cz",
+    "romania":            "ro",  "ro": "ro",
+    "hungary":            "hu",  "hu": "hu",
+    "ukraine":            "ua",  "ua": "ua",
+    "russia":             "ru",  "ru": "ru",
     # Middle East
-    "saudi arabia":       "sa",
-    "united arab emirates": "ae",  "uae": "ae",  "u.a.e.": "ae",
-    "qatar":              "qa",
-    "kuwait":             "kw",
-    "bahrain":            "bh",
-    "oman":               "om",
-    "jordan":             "jo",
-    "lebanon":            "lb",
-    "israel":             "il",
-    "iran":               "ir",
-    "iraq":               "iq",
-    "turkey":             "tr",  "türkiye": "tr",
+    "saudi arabia":       "sa",  "sa": "sa",
+    "united arab emirates": "ae",  "uae": "ae",  "u a e": "ae",  "ae": "ae",
+    "qatar":              "qa",  "qa": "qa",
+    "kuwait":             "kw",  "kw": "kw",
+    "bahrain":            "bh",  "bh": "bh",
+    "oman":               "om",  "om": "om",
+    "jordan":             "jo",  "jo": "jo",
+    "lebanon":            "lb",  "lb": "lb",
+    "israel":             "il",  "il": "il",
+    "iran":               "ir",  "ir": "ir",
+    "iraq":               "iq",  "iq": "iq",
+    "turkey":             "tr",  "türkiye": "tr",  "tr": "tr",
     # Asia
-    "pakistan":           "pk",
-    "india":              "in",
-    "bangladesh":         "bd",
-    "sri lanka":          "lk",
-    "nepal":              "np",
-    "afghanistan":        "af",
-    "china":              "cn",
-    "hong kong":          "hk",
-    "taiwan":             "tw",
-    "japan":              "jp",
-    "south korea":        "kr",  "korea": "kr",  "republic of korea": "kr",
-    "singapore":          "sg",
-    "malaysia":           "my",
-    "indonesia":          "id",
-    "philippines":        "ph",
-    "thailand":           "th",
-    "vietnam":            "vn",
+    "pakistan":           "pk",  "pk": "pk",
+    "india":              "in",  "in": "in",
+    "bangladesh":         "bd",  "bd": "bd",
+    "sri lanka":          "lk",  "lk": "lk",
+    "nepal":              "np",  "np": "np",
+    "afghanistan":        "af",  "af": "af",
+    "china":              "cn",  "cn": "cn",
+    "hong kong":          "hk",  "hk": "hk",
+    "taiwan":             "tw",  "tw": "tw",
+    "japan":              "jp",  "jp": "jp",
+    "south korea":        "kr",  "korea": "kr",  "republic of korea": "kr",  "kr": "kr",
+    "singapore":          "sg",  "sg": "sg",
+    "malaysia":           "my",  "my": "my",
+    "indonesia":          "id",  "id": "id",
+    "philippines":        "ph",  "ph": "ph",
+    "thailand":           "th",  "th": "th",
+    "vietnam":            "vn",  "vn": "vn",
     # Oceania
-    "australia":          "au",
-    "new zealand":        "nz",
+    "australia":          "au",  "au": "au",
+    "new zealand":        "nz",  "nz": "nz",
     # Africa
-    "south africa":       "za",
-    "nigeria":            "ng",
-    "kenya":              "ke",
-    "egypt":              "eg",
-    "morocco":            "ma",
-    "ghana":              "gh",
-    "ethiopia":           "et",
-    "tanzania":           "tz",
-    "uganda":             "ug",
+    "south africa":       "za",  "za": "za",
+    "nigeria":            "ng",  "ng": "ng",
+    "kenya":              "ke",  "ke": "ke",
+    "egypt":              "eg",  "eg": "eg",
+    "morocco":            "ma",  "ma": "ma",
+    "ghana":              "gh",  "gh": "gh",
+    "ethiopia":           "et",  "et": "et",
+    "tanzania":           "tz",  "tz": "tz",
+    "uganda":             "ug",  "ug": "ug",
 }
 
 # Reverse index: ISO code → first canonical name (for display)
@@ -104,12 +106,23 @@ for _name, _code in _COUNTRY_TO_CODE.items():
 
 
 def normalize_country(raw: str) -> str:
-    """Normalize a country string for lookup: lowercase, strip, collapse punctuation."""
+    """Normalize a country string for lookup: lowercase, strip, collapse punctuation.
+
+    Preserves Unicode letters (so 'Türkiye' stays 'türkiye', not 't rkiye').
+    Examples:
+      'United States'    → 'united states'
+      'U.S.A.'           → 'u s a' (then matched against 'u s a' alias)
+      '  united  states' → 'united states' (collapse extra spaces)
+      'Türkiye'          → 'türkiye'
+    """
     if not raw:
         return ""
     s = raw.strip().lower()
-    # Collapse any run of non-alphanumeric to a single space.
-    s = re.sub(r"[^a-z0-9]+", " ", s).strip()
+    # Collapse any run of non-letter/non-digit (including dots, hyphens) to a single space.
+    # Use \\w with re.UNICODE so accented letters are preserved.
+    s = re.sub(r"[^\w]+", " ", s, flags=re.UNICODE).strip()
+    # Collapse underscores too (\\w includes underscore)
+    s = re.sub(r"_+", " ", s).strip()
     return s
 
 

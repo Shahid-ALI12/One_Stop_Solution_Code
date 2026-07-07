@@ -165,13 +165,19 @@ def validate_slot(
         raise SlotValidationError("Internal error: datetime has no tzinfo", code="internal")
 
     # Past / too-soon check.
+    # Note: clients typically send minute-precision datetimes (no seconds),
+    # so a slot that's exactly +1h30s from now gets parsed as +1h0s. To avoid
+    # spurious rejections at the boundary, we use a small grace window of 30s.
     lead_seconds = (aware - now_utc).total_seconds()
     if lead_seconds < 0:
         raise SlotValidationError(
             "Selected date/time is in the past. Please pick a future slot.",
             code="past",
         )
-    if lead_seconds < MIN_LEAD_HOURS * 3600:
+    # Allow slots that are at least MIN_LEAD_HOURS from now, with a 30-second
+    # grace window to absorb parsing precision loss (client sends HH:MM, we
+    # lose the seconds component).
+    if lead_seconds < (MIN_LEAD_HOURS * 3600) - 30:
         raise SlotValidationError(
             f"Please pick a slot at least {MIN_LEAD_HOURS} hour(s) from now.",
             code="too_soon",
