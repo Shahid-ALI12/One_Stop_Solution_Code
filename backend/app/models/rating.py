@@ -17,5 +17,6 @@ class Rating(Base):
     comment       = Column(Text, default="")
     rating_stars  = Column(Integer, default=5)
     is_approved   = Column(Boolean, default=False)
+    sort_order    = Column(Integer, default=0)
     created_at    = Column(DateTime(timezone=True), server_default=func.now())
     updated_at    = Column(DateTime(timezone=True), onupdate=func.now())

@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db
 from app.admin_auth import require_admin
 from app.schemas.team_member import TeamMemberCreate, TeamMemberUpdate, TeamMemberResponse
+from app.schemas.reorder import ReorderRequest
 from app.services import team_member_service
+from app.models.team_member import TeamMember
 
 router = APIRouter(prefix="/team", tags=["Team"])
 
@@ -34,3 +36,14 @@ def update_team_member(team_id: int, body: TeamMemberUpdate, db: Session = Depen
 def delete_team_member(team_id: int, db: Session = Depends(get_db)):
     if not team_member_service.delete_team_member(db, team_id):
         raise HTTPException(status_code=404, detail="Team member not found")
+
+
+@router.put("/reorder", dependencies=[Depends(require_admin)])
+def reorder_team_members(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many team members at once."""
+    for it in body.items:
+        t = db.query(TeamMember).filter(TeamMember.id == it.id).first()
+        if t:
+            t.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}

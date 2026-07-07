@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.models.enquiry import Enquiry
 from app.schemas.enquiry import EnquiryCreate, EnquiryUpdate
+from app.services import notification_service
 
 
 def _to_response(e: Enquiry) -> dict:
@@ -38,6 +39,11 @@ def create_enquiry(db: Session, data: EnquiryCreate) -> dict:
     db.add(e)
     db.commit()
     db.refresh(e)
+    # Fire admin notifications (email + WhatsApp) — best-effort, no failure surface to caller
+    try:
+        notification_service.notify_new_enquiry(_to_response(e))
+    except Exception:
+        pass
     return _to_response(e)
 
 

@@ -4,7 +4,10 @@ from app.schemas.user import UserCreate
 
 
 def get_all_users(db: Session) -> list[User]:
-    return db.query(User).filter(User.is_active == True).all()
+    # User model has `is_verified`, not `is_active`. We return all users
+    # since the public list-users endpoint should show everyone; the
+    # `is_verified` flag is exposed in UserResponse for callers to filter.
+    return db.query(User).all()
 
 
 def get_user_by_id(db: Session, user_id: int) -> User | None:

@@ -53,6 +53,7 @@ def _to_response(svc: Service):
                 "media_url": p.media_url,
                 "media_title": p.media_title,
                 "thumbnail_url": p.thumbnail_url,
+                "sort_order": p.sort_order,
             }
             for p in svc.portfolio_items
         ],
@@ -200,6 +201,7 @@ def add_portfolio_item(db: Session, service_id: int, data: PortfolioItemCreate) 
         media_url=data.media_url,
         media_title=data.media_title,
         thumbnail_url=data.thumbnail_url,
+        sort_order=data.sort_order,
     )
     db.add(p)
     db.commit()
@@ -209,6 +211,7 @@ def add_portfolio_item(db: Session, service_id: int, data: PortfolioItemCreate) 
         "description": p.description, "skills": _serialize_skills(p.skills),
         "media_type": p.media_type, "media_url": p.media_url,
         "media_title": p.media_title, "thumbnail_url": p.thumbnail_url,
+        "sort_order": p.sort_order,
     }
 
 
@@ -223,6 +226,7 @@ def update_portfolio_item(db: Session, p_id: int, data: PortfolioItemUpdate) -> 
     if data.media_url is not None: p.media_url = data.media_url
     if data.media_title is not None: p.media_title = data.media_title
     if data.thumbnail_url is not None: p.thumbnail_url = data.thumbnail_url
+    if data.sort_order is not None: p.sort_order = data.sort_order
     db.commit()
     db.refresh(p)
     return {
@@ -230,6 +234,7 @@ def update_portfolio_item(db: Session, p_id: int, data: PortfolioItemUpdate) -> 
         "description": p.description, "skills": _serialize_skills(p.skills),
         "media_type": p.media_type, "media_url": p.media_url,
         "media_title": p.media_title, "thumbnail_url": p.thumbnail_url,
+        "sort_order": p.sort_order,
     }
 
 

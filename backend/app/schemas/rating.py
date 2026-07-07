@@ -11,6 +11,7 @@ class RatingCreate(BaseModel):
     comment: str = ""
     rating_stars: int = 5
     is_approved: bool = False
+    sort_order: int = 0
 
 
 class RatingUpdate(BaseModel):
@@ -23,6 +24,7 @@ class RatingUpdate(BaseModel):
     comment: str | None = None
     rating_stars: int | None = None
     is_approved: bool | None = None
+    sort_order: int | None = None
 
 
 class RatingResponse(BaseModel):
@@ -36,5 +38,6 @@ class RatingResponse(BaseModel):
     comment: str
     rating_stars: int
     is_approved: bool
+    sort_order: int = 0
 
     model_config = {"from_attributes": True}

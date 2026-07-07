@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.models.admin_user import AdminUser
 from app.models.service import Service, SubService, PortfolioItem
 from app.models.enquiry import Enquiry
@@ -14,11 +15,18 @@ from app.models.rating import Rating
 from app.models.resource import ResourceItem
 from app.models.team_member import TeamMember
 from app.models.site_stats import SiteStats
+from app.models.faq import FAQ
+from app.models.contact_platform import ContactPlatform
+from app.models.certification import Certification
 from app.services.security import hash_password
 
 
 # ---------- Default data ----------
-DEFAULT_ADMIN = {"username": "admin", "password": "admin123", "display_name": "Site Administrator"}
+DEFAULT_ADMIN = {
+    "username":      settings.DEFAULT_ADMIN_USERNAME,
+    "password":      settings.DEFAULT_ADMIN_PASSWORD,
+    "display_name":  settings.DEFAULT_ADMIN_DISPLAY_NAME,
+}
 
 DEFAULT_STATS = {"clients": 140, "orders": 380, "countries": 18, "label": "Trusted Performance"}
 
@@ -221,6 +229,47 @@ DEFAULT_CONSULTATIONS = [
      "pkt_time": "18-Jul-2026 11:00 AM (PKT)", "is_answered": True},
 ]
 
+DEFAULT_FAQS = [
+    {"question": "What bookkeeping software do you support?",
+     "answer": "We are certified in QuickBooks Online, Xero, Sage, and Zoho Books. We can also work with Excel-based ledgers if that's what your business currently uses.",
+     "sort_order": 1, "is_active": True},
+    {"question": "How quickly can you start working on my books?",
+     "answer": "Onboarding typically takes 2-3 business days. For catch-up bookkeeping engagements, we can usually begin within 24 hours of contract signature.",
+     "sort_order": 2, "is_active": True},
+    {"question": "Do you sign NDAs and handle confidential data?",
+     "answer": "Yes. Every team member signs a comprehensive NDA before joining. We use encrypted file transfers and follow GAAP-level confidentiality standards throughout.",
+     "sort_order": 3, "is_active": True},
+    {"question": "What are your payment terms?",
+     "answer": "We invoice monthly with NET-15 terms. For one-off projects (catch-up, audit prep), we request a 50% advance and 50% on delivery.",
+     "sort_order": 4, "is_active": True},
+    {"question": "Can you work with international clients across timezones?",
+     "answer": "Absolutely. Our team operates across PKT, EST, and GMT. We automatically convert meeting times to your local timezone when you book a consultation.",
+     "sort_order": 5, "is_active": True},
+]
+
+DEFAULT_CONTACT_PLATFORMS = [
+    {"name": "LinkedIn", "icon": "Linkedin", "profile_url": "https://www.linkedin.com/company/one-stop-solution",
+     "display_order": 1, "is_active": True},
+    {"name": "Fiverr", "icon": "Briefcase", "profile_url": "https://www.fiverr.com/onestopsolution",
+     "display_order": 2, "is_active": True},
+    {"name": "Upwork", "icon": "Briefcase", "profile_url": "https://www.upwork.com/agencies/onestopsolution",
+     "display_order": 3, "is_active": True},
+]
+
+DEFAULT_CERTIFICATIONS = [
+    # Ali Raza (team_member_id=1, will be re-linked after team seed)
+    {"team_member_id": 1, "name": "Certified Public Accountant", "short_code": "CPA",
+     "issuer": "AICPA", "year_obtained": 2015, "sort_order": 1},
+    {"team_member_id": 1, "name": "QuickBooks ProAdvisor", "short_code": "QBP",
+     "issuer": "Intuit", "year_obtained": 2018, "sort_order": 2},
+    # Ayesha Khan (team_member_id=2)
+    {"team_member_id": 2, "name": "Microsoft Office Specialist Excel Expert", "short_code": "MOS",
+     "issuer": "Microsoft", "year_obtained": 2019, "sort_order": 1},
+    # Bilal Ahmed (team_member_id=3)
+    {"team_member_id": 3, "name": "Certified Administrative Professional", "short_code": "CAP",
+     "issuer": "IAAP", "year_obtained": 2020, "sort_order": 1},
+]
+
 
 # ---------- Runner ----------
 def get_seed_status(db: Session) -> dict:
@@ -232,13 +281,20 @@ def get_seed_status(db: Session) -> dict:
         "team_count": db.query(TeamMember).count(),
         "enquiries_count": db.query(Enquiry).count(),
         "consultations_count": db.query(Consultation).count(),
+        "faqs_count": db.query(FAQ).count(),
+        "contact_platforms_count": db.query(ContactPlatform).count(),
+        "certifications_count": db.query(Certification).count(),
         "stats_exists": db.query(SiteStats).count() > 0,
     }
 
 
 def _wipe_all(db: Session):
     """Delete all data (does NOT drop tables)."""
-    for model in (Enquiry, Consultation, PortfolioItem, SubService, Service, Rating, ResourceItem, TeamMember, SiteStats):
+    for model in (
+        Certification, ContactPlatform, FAQ,
+        Enquiry, Consultation, PortfolioItem, SubService, Service,
+        Rating, ResourceItem, TeamMember, SiteStats,
+    ):
         db.query(model).delete()
     # Admin NOT wiped — keep credentials
     db.commit()
@@ -287,6 +343,7 @@ def run_seed(db: Session, force: bool = False) -> dict:
                 db.add(PortfolioItem(
                     service_id=svc.id,
                     skills=json.dumps(skills, ensure_ascii=False),
+                    sort_order=p.pop("sort_order", 0),
                     **p,
                 ))
         created["services"] = len(DEFAULT_SERVICES)
@@ -327,6 +384,28 @@ def run_seed(db: Session, force: bool = False) -> dict:
             c.created_at = _utc_hours_ago(hours_ago)
             db.add(c)
         created["consultations"] = len(DEFAULT_CONSULTATIONS)
+
+    # 9. FAQs
+    if db.query(FAQ).count() == 0:
+        for fdata in DEFAULT_FAQS:
+            db.add(FAQ(**fdata))
+        created["faqs"] = len(DEFAULT_FAQS)
+
+    # 10. Contact platforms
+    if db.query(ContactPlatform).count() == 0:
+        for pdata in DEFAULT_CONTACT_PLATFORMS:
+            db.add(ContactPlatform(**pdata))
+        created["contact_platforms"] = len(DEFAULT_CONTACT_PLATFORMS)
+
+    # 11. Certifications (linked to team members — assumes team_member_id 1,2,3 exist)
+    if db.query(Certification).count() == 0 and db.query(TeamMember).count() > 0:
+        # Use first 3 team member ids (in case they aren't 1,2,3 due to existing rows)
+        team_ids = [t.id for t in db.query(TeamMember).order_by(TeamMember.id).limit(3).all()]
+        for i, cdata in enumerate(DEFAULT_CERTIFICATIONS):
+            if i < len(team_ids):
+                cdata = {**cdata, "team_member_id": team_ids[i]}
+                db.add(Certification(**cdata))
+        created["certifications"] = min(len(DEFAULT_CERTIFICATIONS), len(team_ids))
 
     db.commit()
     return {"seeded": created, "status": get_seed_status(db)}

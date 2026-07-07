@@ -4,7 +4,9 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db
 from app.admin_auth import require_admin
 from app.schemas.rating import RatingCreate, RatingUpdate, RatingResponse
+from app.schemas.reorder import ReorderRequest
 from app.services import rating_service
+from app.models.rating import Rating
 
 router = APIRouter(prefix="/ratings", tags=["Ratings"])
 
@@ -45,3 +47,14 @@ def update_rating(rating_id: int, body: RatingUpdate, db: Session = Depends(get_
 def delete_rating(rating_id: int, db: Session = Depends(get_db)):
     if not rating_service.delete_rating(db, rating_id):
         raise HTTPException(status_code=404, detail="Rating not found")
+
+
+@router.put("/reorder", dependencies=[Depends(require_admin)])
+def reorder_ratings(body: ReorderRequest, db: Session = Depends(get_db)):
+    """Batch-update sort_order for many ratings at once."""
+    for it in body.items:
+        r = db.query(Rating).filter(Rating.id == it.id).first()
+        if r:
+            r.sort_order = it.sort_order
+    db.commit()
+    return {"ok": True, "count": len(body.items)}
