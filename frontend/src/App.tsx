@@ -19,6 +19,18 @@ import { apiClient } from './api/client';
 import type { Service, Enquiry, Consultation, Rating, PortfolioItem, TeamMember } from './types';
 import TeamSection from './components/TeamSection';
 
+// Mock data — used as the initial seed AND as fallback when backend is unreachable.
+// This restores the original "all-data-on-the-public-site" behavior from before
+// the FastAPI backend was wired in.
+import {
+  SERVICES,
+  INITIAL_RATINGS,
+  INITIAL_TEAM_MEMBERS,
+  INITIAL_ENQUIRIES,
+  INITIAL_CONSULTATIONS,
+  INITIAL_SITE_STATS,
+} from './data/mockData';
+
 // Premium UI global wrappers — public site only
 import AuroraBackground from './components/ui/AuroraBackground';
 import CustomCursor from './components/ui/CustomCursor';
@@ -54,7 +66,7 @@ export default function App() {
   const { isAuthenticated: isAdminAuthenticated, login: doLogin, logout: doLogout, checking } = useAdminAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  // All public site data — fetched from backend
+  // All public site data — fetched from backend (falls back to mock when empty)
   const {
     services: apiServices,
     ratings: apiRatings,
@@ -65,17 +77,38 @@ export default function App() {
     refresh: refreshSite,
   } = useSiteData();
 
-  // Centralized lifted state — derived from API data
-  const [services, setServices] = useState<Service[]>(() => asServiceList(apiServices));
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => asTeamList(apiTeamMembers));
-  const [ratings, setRatings] = useState<Rating[]>(() => asRatingList(apiRatings));
-  const [stats, setStats] = useState(apiStats);
+  // Centralized lifted state — seeded with mock data, then overwritten with
+  // real API data ONLY when the backend actually returns something. This way
+  // the public site shows full mock content even when the backend is down,
+  // and admin edits persist in local state across login/logout cycles.
+  const [services, setServices] = useState<Service[]>(() => SERVICES);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => INITIAL_TEAM_MEMBERS);
+  const [ratings, setRatings] = useState<Rating[]>(() => INITIAL_RATINGS);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => INITIAL_ENQUIRIES);
+  const [consultations, setConsultations] = useState<Consultation[]>(() => INITIAL_CONSULTATIONS);
+  const [stats, setStats] = useState(() => ({
+    clients: INITIAL_SITE_STATS.clients,
+    orders: INITIAL_SITE_STATS.orders,
+    countries: INITIAL_SITE_STATS.countries,
+    label: INITIAL_SITE_STATS.label,
+  }));
 
-  // Sync API data → local state (so components still receive it as props)
-  useEffect(() => { setServices(asServiceList(apiServices)); }, [apiServices]);
-  useEffect(() => { setTeamMembers(asTeamList(apiTeamMembers)); }, [apiTeamMembers]);
-  useEffect(() => { setRatings(asRatingList(apiRatings)); }, [apiRatings]);
-  useEffect(() => { setStats(apiStats); }, [apiStats]);
+  // Sync API data → local state, but ONLY when the API actually has data.
+  // Empty arrays / zero stats from a dead backend must NOT wipe the mock seed.
+  useEffect(() => {
+    if (apiServices && apiServices.length > 0) setServices(asServiceList(apiServices));
+  }, [apiServices]);
+  useEffect(() => {
+    if (apiTeamMembers && apiTeamMembers.length > 0) setTeamMembers(asTeamList(apiTeamMembers));
+  }, [apiTeamMembers]);
+  useEffect(() => {
+    if (apiRatings && apiRatings.length > 0) setRatings(asRatingList(apiRatings));
+  }, [apiRatings]);
+  useEffect(() => {
+    if (apiStats && (apiStats.clients > 0 || apiStats.orders > 0 || apiStats.countries > 0)) {
+      setStats(apiStats);
+    }
+  }, [apiStats]);
 
   // Hash-based admin access — visiting #admin auto-opens the login modal
   useEffect(() => {
@@ -200,14 +233,24 @@ export default function App() {
     return (
       <AdminDashboard
         onLogout={doLogout}
-        // Pass-through props are no-ops because AdminDashboard uses useAdminData() internally now,
-        // but kept for backward compatibility with its prop interface.
-        enquiries={[]}
-        consultations={[]}
+        // Pass the current public-site state so admin sees the same data
+        // the public sees (mock seed OR live API data, whichever won).
+        enquiries={enquiries}
+        consultations={consultations}
         services={services}
         ratings={ratings}
         stats={stats}
         teamMembers={teamMembers}
+        // Wire every update callback back to App.tsx state so admin edits
+        // (add/edit/delete) persist on the public site after logout. The
+        // AdminDashboard still tries the API internally; these callbacks
+        // are the local-source-of-truth fallback.
+        onUpdateEnquiries={setEnquiries}
+        onUpdateConsultations={setConsultations}
+        onUpdateServices={setServices}
+        onUpdateRatings={setRatings}
+        onUpdateStats={handleUpdateStats}
+        onUpdateTeamMembers={setTeamMembers}
       />
     );
   }

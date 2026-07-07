@@ -67,23 +67,33 @@ export default function AdminDashboard(props: AdminDashboardProps) {
   const admin = useAdminData();
 
   // ----- Internal state mirrors so existing component code keeps working -----
+  // Initialize from props; App.tsx now seeds these with mock data so the
+  // admin dashboard is never empty even when the backend is down.
   const [services, setServices] = useState<Service[]>(props.services || []);
   const [ratings, setRatings] = useState<Rating[]>(props.ratings || []);
   const [enquiries, setEnquiries] = useState<Enquiry[]>(props.enquiries || []);
   const [consultations, setConsultations] = useState<Consultation[]>(props.consultations || []);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(props.teamMembers || []);
   const [stats, setStats] = useState<{ clients: number; orders: number; countries: number; label?: string }>(
-    props.stats || { clients: 0, orders: 0, countries: 0, label: '' }
+    props.stats && (props.stats.clients > 0 || props.stats.orders > 0 || props.stats.countries > 0)
+      ? props.stats
+      : { clients: 140, orders: 380, countries: 18, label: '' }
   );
 
-  // Sync admin hook data → local state
-  useEffect(() => { setEnquiries(admin.enquiries as any); }, [admin.enquiries]);
-  useEffect(() => { setConsultations(admin.consultations as any); }, [admin.consultations]);
-  useEffect(() => { setRatings(admin.allRatings as any); }, [admin.allRatings]);
-  // Keep services & teamMembers in sync with parent prop changes
-  useEffect(() => { if (props.services) setServices(props.services); }, [props.services]);
-  useEffect(() => { if (props.teamMembers) setTeamMembers(props.teamMembers); }, [props.teamMembers]);
-  useEffect(() => { if (props.stats) setStats(props.stats); }, [props.stats]);
+  // Sync admin hook data → local state, but ONLY when the admin hook actually
+  // has data. When the backend is unreachable, useAdminData() returns empty
+  // arrays — we must NOT let those wipe the mock-seeded props passed from App.
+  useEffect(() => { if (admin.enquiries && admin.enquiries.length > 0) setEnquiries(admin.enquiries as any); }, [admin.enquiries]);
+  useEffect(() => { if (admin.consultations && admin.consultations.length > 0) setConsultations(admin.consultations as any); }, [admin.consultations]);
+  useEffect(() => { if (admin.allRatings && admin.allRatings.length > 0) setRatings(admin.allRatings as any); }, [admin.allRatings]);
+  // Keep services, teamMembers, ratings & stats in sync with parent prop changes
+  // (these props are the source of truth when the backend is down).
+  useEffect(() => { if (props.services && props.services.length > 0) setServices(props.services); }, [props.services]);
+  useEffect(() => { if (props.teamMembers && props.teamMembers.length > 0) setTeamMembers(props.teamMembers); }, [props.teamMembers]);
+  useEffect(() => { if (props.ratings && props.ratings.length > 0) setRatings(props.ratings); }, [props.ratings]);
+  useEffect(() => { if (props.enquiries && props.enquiries.length > 0) setEnquiries(props.enquiries); }, [props.enquiries]);
+  useEffect(() => { if (props.consultations && props.consultations.length > 0) setConsultations(props.consultations); }, [props.consultations]);
+  useEffect(() => { if (props.stats && (props.stats.clients > 0 || props.stats.orders > 0 || props.stats.countries > 0)) setStats(props.stats); }, [props.stats]);
 
   // ----- Wire mutations: prefer API, fall back to parent callbacks -----
   const handleUpdateEnquiries = (updated: Enquiry[]) => {
