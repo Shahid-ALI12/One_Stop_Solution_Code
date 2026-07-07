@@ -30,3 +30,29 @@ Stage Summary:
 - Public site is byte-for-byte the original ZIP design
 - Admin portal work (demo-mode, persistence, edit callbacks, AnalyticsTab) fully preserved
 - Build verified, runtime verified, visual verification by VLM
+
+---
+Task ID: REALTIME-SYNC-1
+Agent: main
+Task: User reported that admin edits (delete review, edit service, etc.) do NOT reflect on the public site in real time — public site keeps showing stale data even though admin saves the change.
+
+Work Log:
+- Diagnosed root cause: localStorage persistence (added in PR #5) writes admin edits to localStorage, but the public site tab's React state has no way to know that localStorage changed in another tab. The browser auto-syncs the localStorage value but doesn't notify React.
+- Implemented fix in App.tsx: added a `window.addEventListener('storage', ...)` listener that re-hydrates the affected slice of state (services / ratings / teamMembers / enquiries / consultations / stats) whenever another tab writes to localStorage. Skips same-value writes (prevents render loops) and silently drops malformed payloads.
+- Added a green "Open Live Site in New Tab (Real-Time Sync)" button in the AdminDashboard sidebar (below the existing Exit Workspace button) so the user can keep admin + public site open side-by-side and watch edits propagate in real time.
+- Build: clean (2721 modules, 0 errors)
+- Wrote Playwright test (scripts/test_realtime_sync.js) that:
+  * Tab A: public site, 3 reviews (Eleanor, Marcus, Sana)
+  * Tab B: admin (same browser context), delete Eleanor
+  * Tab A: review count dropped 3 -> 2 within 200ms — NO refresh needed
+  * Result: PASS
+- Committed as 6b131e5, pushed to fork as part of main (after merging fork/main which contained PR #6 merge).
+- Pushed to fork main as commit 667defb (merge commit).
+- PAT lacks Pull requests:Write permission, so provided pre-filled compare URL for user to open PR manually:
+  https://github.com/Ali-Raza-2111/One_Stop_Solution_Code/compare/main...Shahid-ALI12:main?quick_pull=1&title=feat(realtime)%3A%20admin%20edits%20reflect%20on%20public%20site%20instantly%20(cross-tab%20sync)
+
+Stage Summary:
+- Real-time cross-tab sync working: admin edits in tab B propagate to public site in tab A within ~200ms via the browser's `storage` event.
+- New button in admin sidebar lets user open public site in a new tab without losing the admin session.
+- Same-tab updates (admin → logout → public site) already worked because in-memory state is preserved; only cross-tab needed fixing.
+- Build verified, runtime verified by Playwright.

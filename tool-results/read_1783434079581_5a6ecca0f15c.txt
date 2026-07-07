@@ -1,0 +1,2002 @@
+     1→import React, { useState, useEffect } from 'react';
+     2→import { motion, AnimatePresence } from 'motion/react';
+     3→import AnalyticsTab from './admin/AnalyticsTab';
+     4→import { 
+     5→  LayoutDashboard, 
+     6→  Briefcase, 
+     7→  StarHalf, 
+     8→  BarChart3, 
+     9→  LogOut, 
+    10→  X, 
+    11→  Check, 
+    12→  Plus, 
+    13→  Trash2, 
+    14→  Eye, 
+    15→  PlusCircle, 
+    16→  CheckCircle, 
+    17→  AlertCircle,
+    18→  Clock,
+    19→  User,
+    20→  Shield,
+    21→  Star,
+    22→  Globe2,
+    23→  Sparkles,
+    24→  GripVertical,
+    25→  ChevronUp,
+    26→  ChevronDown,
+    27→  Mail,
+    28→  Send,
+    29→  Calendar,
+    30→  Globe,
+    31→  MapPin,
+    32→  UserPlus,
+    33→  FolderPlus,
+    34→  ArrowLeft,
+    35→  Award,
+    36→  ExternalLink,
+    37→  Lock,
+    38→  Pencil,
+    39→  Save,
+    40→  XCircle
+    41→} from 'lucide-react';
+    42→import { Service, PortfolioItem, Enquiry, Consultation, Rating, TeamMember } from '../types';
+    43→import { useAdminData } from '../hooks/useApi';
+    44→
+    45→interface AdminDashboardProps {
+    46→  services?: Service[];
+    47→  ratings?: Rating[];
+    48→  enquiries?: Enquiry[];
+    49→  consultations?: Consultation[];
+    50→  stats?: { clients: number; orders: number; countries: number; label?: string };
+    51→  onUpdateServices?: (updated: Service[]) => void;
+    52→  onUpdateRatings?: (updated: Rating[]) => void;
+    53→  onUpdateEnquiries?: (updated: Enquiry[]) => void;
+    54→  onUpdateConsultations?: (updated: Consultation[]) => void;
+    55→  onUpdateStats?: (updated: { clients: number; orders: number; countries: number; label?: string }) => void;
+    56→  onLogout: () => void;
+    57→  teamMembers?: TeamMember[];
+    58→  onUpdateTeamMembers?: (updated: TeamMember[]) => void;
+    59→}
+    60→
+    61→type ActiveTab = 'analytics' | 'services' | 'reviews' | 'team' | 'contacts';
+    62→
+    63→export default function AdminDashboard(props: AdminDashboardProps) {
+    64→  const { onLogout } = props;
+    65→
+    66→  // ----- Backend-backed admin data -----
+    67→  const admin = useAdminData();
+    68→
+    69→  // ----- Internal state mirrors so existing component code keeps working -----
+    70→  // Initialize from props; App.tsx now seeds these with mock data so the
+    71→  // admin dashboard is never empty even when the backend is down.
+    72→  const [services, setServices] = useState<Service[]>(props.services || []);
+    73→  const [ratings, setRatings] = useState<Rating[]>(props.ratings || []);
+    74→  const [enquiries, setEnquiries] = useState<Enquiry[]>(props.enquiries || []);
+    75→  const [consultations, setConsultations] = useState<Consultation[]>(props.consultations || []);
+    76→  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(props.teamMembers || []);
+    77→  const [stats, setStats] = useState<{ clients: number; orders: number; countries: number; label?: string }>(
+    78→    props.stats && (props.stats.clients > 0 || props.stats.orders > 0 || props.stats.countries > 0)
+    79→      ? props.stats
+    80→      : { clients: 140, orders: 380, countries: 18, label: '' }
+    81→  );
+    82→
+    83→  // Sync admin hook data → local state, but ONLY when the admin hook actually
+    84→  // has data. When the backend is unreachable, useAdminData() returns empty
+    85→  // arrays — we must NOT let those wipe the mock-seeded props passed from App.
+    86→  useEffect(() => { if (admin.enquiries && admin.enquiries.length > 0) setEnquiries(admin.enquiries as any); }, [admin.enquiries]);
+    87→  useEffect(() => { if (admin.consultations && admin.consultations.length > 0) setConsultations(admin.consultations as any); }, [admin.consultations]);
+    88→  useEffect(() => { if (admin.allRatings && admin.allRatings.length > 0) setRatings(admin.allRatings as any); }, [admin.allRatings]);
+    89→  // Keep services, teamMembers, ratings & stats in sync with parent prop changes
+    90→  // (these props are the source of truth when the backend is down).
+    91→  useEffect(() => { if (props.services && props.services.length > 0) setServices(props.services); }, [props.services]);
+    92→  useEffect(() => { if (props.teamMembers && props.teamMembers.length > 0) setTeamMembers(props.teamMembers); }, [props.teamMembers]);
+    93→  useEffect(() => { if (props.ratings && props.ratings.length > 0) setRatings(props.ratings); }, [props.ratings]);
+    94→  useEffect(() => { if (props.enquiries && props.enquiries.length > 0) setEnquiries(props.enquiries); }, [props.enquiries]);
+    95→  useEffect(() => { if (props.consultations && props.consultations.length > 0) setConsultations(props.consultations); }, [props.consultations]);
+    96→  useEffect(() => { if (props.stats && (props.stats.clients > 0 || props.stats.orders > 0 || props.stats.countries > 0)) setStats(props.stats); }, [props.stats]);
+    97→
+    98→  // ----- Wire mutations: prefer API, fall back to parent callbacks -----
+    99→  const handleUpdateEnquiries = (updated: Enquiry[]) => {
+   100→    setEnquiries(updated);
+   101→    props.onUpdateEnquiries?.(updated);
+   102→  };
+   103→  const handleUpdateConsultations = (updated: Consultation[]) => {
+   104→    setConsultations(updated);
+   105→    props.onUpdateConsultations?.(updated);
+   106→  };
+   107→  const handleUpdateRatings = (updated: Rating[]) => {
+   108→    setRatings(updated);
+   109→    props.onUpdateRatings?.(updated);
+   110→  };
+   111→  const handleUpdateServices = (updated: Service[]) => {
+   112→    setServices(updated);
+   113→    props.onUpdateServices?.(updated);
+   114→  };
+   115→  const handleUpdateTeamMembers = (updated: TeamMember[]) => {
+   116→    setTeamMembers(updated);
+   117→    props.onUpdateTeamMembers?.(updated);
+   118→  };
+   119→  const handleUpdateStats = (updated: { clients: number; orders: number; countries: number; label?: string }) => {
+   120→    setStats(updated);
+   121→    props.onUpdateStats?.(updated);
+   122→    // Persist to backend (fire & forget — caller already optimistically updated UI)
+   123→    admin.saveStats({ clients: updated.clients, orders: updated.orders, countries: updated.countries, label: updated.label }).catch(() => {});
+   124→  };
+   125→
+   126→  // Helpers that route toggles / deletes through the API hook
+   127→  const toggleEnquiryAnswered = (id: string, isAnswered: boolean) => {
+   128→    admin.toggleEnquiryAnswered(id, isAnswered);
+   129→  };
+   130→  const deleteEnquiryById = (id: string) => {
+   131→    admin.deleteEnquiry(id);
+   132→  };
+   133→  const toggleConsultationAnswered = (id: string, isAnswered: boolean) => {
+   134→    admin.toggleConsultationAnswered(id, isAnswered);
+   135→  };
+   136→  const deleteConsultationById = (id: string) => {
+   137→    admin.deleteConsultation(id);
+   138→  };
+   139→  const toggleRatingApproval = (id: string, isApproved: boolean) => {
+   140→    admin.toggleRatingApproval(id, isApproved);
+   141→  };
+   142→  const deleteRatingById = (id: string) => {
+   143→    admin.deleteRating(id);
+   144→  };
+   145→
+   146→  // 1. Sidebar tab view state
+   147→  const [activeTab, setActiveTab] = useState<ActiveTab>('analytics');
+   148→
+   149→  // ==========================================
+   150→  // VIEW A STATES & COMPARTMENTS (Analytics)
+   151→  // ==========================================
+   152→  const [countrySearch, setCountrySearch] = useState('');
+   153→  const [countryList, setCountryList] = useState([
+   154→    { name: 'United States', code: 'US', visits: 450 },
+   155→    { name: 'United Kingdom', code: 'GB', visits: 280 },
+   156→    { name: 'Canada', code: 'CA', visits: 190 },
+   157→    { name: 'Pakistan', code: 'PK', visits: 150 },
+   158→    { name: 'Germany', code: 'DE', visits: 95 },
+   159→    { name: 'United Arab Emirates', code: 'AE', visits: 80 },
+   160→    { name: 'Australia', code: 'AU', visits: 72 }
+   161→  ]);
+   162→  const [newCountryName, setNewCountryName] = useState('');
+   163→  const [newCountryVisits, setNewCountryVisits] = useState('10');
+   164→
+   165→  // Dynamic Conversion Pie Chart percentages
+   166→  const [conversionStats, setConversionStats] = useState({
+   167→    email: 42,
+   168→    whatsapp: 38,
+   169→    alternative: 20 // Fiverr, Upwork, LinkedIn
+   170→  });
+   171→
+   172→  // Global reviews stats matrix (Editable, and automatically updates total/average)
+   173→  const [starsHistogram, setStarsHistogram] = useState({
+   174→    fiveStar: 120,
+   175→    fourStar: 24,
+   176→    threeStar: 7,
+   177→    twoStar: 2,
+   178→    oneStar: 1
+   179→  });
+   180→
+   181→  // Calculate scores on the fly from starsHistogram
+   182→  const totalStars = 
+   183→    starsHistogram.fiveStar * 5 + 
+   184→    starsHistogram.fourStar * 4 + 
+   185→    starsHistogram.threeStar * 3 + 
+   186→    starsHistogram.twoStar * 2 + 
+   187→    starsHistogram.oneStar * 1;
+   188→  const totalReviewsCount = 
+   189→    starsHistogram.fiveStar + 
+   190→    starsHistogram.fourStar + 
+   191→    starsHistogram.threeStar + 
+   192→    starsHistogram.twoStar + 
+   193→    starsHistogram.oneStar;
+   194→  const computedAverageScore = totalReviewsCount > 0 ? (totalStars / totalReviewsCount).toFixed(2) : '0.00';
+   195→
+   196→  // Domain specific score tracker (Editable)
+   197→  const [domainRatings, setDomainRatings] = useState([
+   198→    { domain: 'Bookkeeping & GAAP Audits', score: 4.95 },
+   199→    { domain: 'Catch-Up Cleanup Projects', score: 4.88 },
+   200→    { domain: 'Tax Preparation & Advisory', score: 4.91 },
+   201→    { domain: 'VBA & Spreadsheet Systems', score: 4.96 }
+   202→  ]);
+   203→
+   204→  // ==========================================
+   205→  // VIEW B STATES & COMPARTMENTS (Services / Portfolio)
+   206→  // ==========================================
+   207→  const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id || 'new');
+   208→  const [isCreatingNewService, setIsCreatingNewService] = useState(false);
+   209→
+   210→  // New Service block initial structure
+   211→  const [newServiceName, setNewServiceName] = useState('');
+   212→  const [newServiceDesc, setNewServiceDesc] = useState('');
+   213→
+   214→  // Portfolio inline creation
+   215→  const [isAddingPortfolio, setIsAddingPortfolio] = useState(false);
+   216→  const [portTitle, setPortTitle] = useState('');
+   217→  const [portDesc, setPortDesc] = useState('');
+   218→  const [portSkillsInput, setPortSkillsInput] = useState('');
+   219→  const [portMediaUrl, setPortMediaUrl] = useState('https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&q=80&w=600');
+   220→  const [portMediaType, setPortMediaType] = useState<'image' | 'video' | 'pdf'>('image');
+   221→
+   222→  // Portfolio inline editing (NEW)
+   223→  const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
+   224→  const [editPortTitle, setEditPortTitle] = useState('');
+   225→  const [editPortDesc, setEditPortDesc] = useState('');
+   226→  const [editPortSkillsInput, setEditPortSkillsInput] = useState('');
+   227→  const [editPortMediaUrl, setEditPortMediaUrl] = useState('');
+   228→  const [editPortMediaType, setEditPortMediaType] = useState<'image' | 'video' | 'pdf'>('image');
+   229→
+   230→  // ==========================================
+   231→  // VIEW C STATES & COMPARTMENTS (Ratings Hub)
+   232→  // ==========================================
+   233→  const [reviewFormOpen, setReviewFormOpen] = useState(false);
+   234→  const [reviewForm, setReviewForm] = useState({
+   235→    name: '',
+   236→    designation: '',
+   237→    company: '',
+   238→    comment: '',
+   239→    country: 'United States',
+   240→    ratingStars: 5,
+   241→    avatarUrl: ''
+   242→  });
+   243→  // NEW: track which review is being edited (null = create mode)
+   244→  const [editingReviewId, setEditingReviewId] = useState<string | null>(null);
+   245→
+   246→  // Country Flag Code Map
+   247→  const flagMap: { [key: string]: string } = {
+   248→    'united states': '🇺🇸',
+   249→    'us': '🇺🇸',
+   250→    'united kingdom': '🇬🇧',
+   251→    'uk': '🇬🇧',
+   252→    'canada': '🇨🇦',
+   253→    'ca': '🇨🇦',
+   254→    'pakistan': '🇵🇰',
+   255→    'pk': '🇵🇰',
+   256→    'germany': '🇩🇪',
+   257→    'de': '🇩🇪',
+   258→    'australia': '🇦🇺',
+   259→    'au': '🇦🇺',
+   260→    'united arab emirates': '🇦🇪',
+   261→    'uae': '🇦🇪',
+   262→    'dubai': '🇦🇪',
+   263→    'saudi arabia': '🇸🇦',
+   264→    'sa': '🇸🇦'
+   265→  };
+   266→
+   267→  const getCountryFlagEmoji = (countryName: string): string => {
+   268→    const norm = countryName.trim().toLowerCase();
+   269→    return flagMap[norm] || '🌐';
+   270→  };
+   271→
+   272→  // ==========================================
+   273→  // VIEW D STATES & COMPARTMENTS (Team Board)
+   274→  // ==========================================
+   275→  const [isOnboardingEmployee, setIsOnboardingEmployee] = useState(false);
+   276→  const [employeeForm, setEmployeeForm] = useState({
+   277→    name: '',
+   278→    role: '',
+   279→    bio: '',
+   280→    avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+   281→    email: '',
+   282→    specialtiesInput: '',
+   283→    isOnline: true
+   284→  });
+   285→  const [tempCertValue, setTempCertValue] = useState<{ [key: string]: string }>({});
+   286→  // NEW: track which team member is being edited (null = create mode)
+   287→  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+   288→
+   289→  // ==========================================
+   290→  // VIEW E STATES & COMPARTMENTS (Channels / Timezones)
+   291→  // ==========================================
+   292→  const [channels, setChannels] = useState([
+   293→    { name: 'Upwork Portfolio', type: 'Upwork', url: 'https://upwork.com/companies/~015a9999712a8069d2' },
+   294→    { name: 'Fiverr Professional Pro', type: 'Fiverr', url: 'https://fiverr.com/onestopservices' },
+   295→    { name: 'Corporate LinkedIn Profile', type: 'LinkedIn', url: 'https://linkedin.com/company/onestoponlineservices' },
+   296→    { name: 'WhatsApp Business Secure Line', type: 'WhatsApp', url: 'https://wa.me/923000000000' }
+   297→  ]);
+   298→  const [newChannelName, setNewChannelName] = useState('');
+   299→  const [newChannelType, setNewChannelType] = useState('LinkedIn');
+   300→  const [newChannelUrl, setNewChannelUrl] = useState('');
+   301→  // NEW: track which channel index is being edited (-1 = create mode)
+   302→  const [editingChannelIdx, setEditingChannelIdx] = useState<number>(-1);
+   303→
+   304→  const [consultationEmail, setConsultationEmail] = useState('bookings@onestoponlineservices.com');
+   305→  const [isEmailForwardingActive, setIsEmailForwardingActive] = useState(true);
+   306→
+   307→  // Timezone Booking Conversion Simulator states
+   308→  const [simSelectedHour, setSimSelectedHour] = useState('14'); // 2 PM
+   309→  const [simSelectedMinute, setSimSelectedMinute] = useState('30'); // :30
+   310→  const [simClientTz, setSimClientTz] = useState('EST'); // UTC-5
+   311→
+   312→  // Helper to calculate side-by-side PKT translation
+   313→  const getPKTEquivalent = () => {
+   314→    const hh = parseInt(simSelectedHour) || 0;
+   315→    const mm = parseInt(simSelectedMinute) || 0;
+   316→    
+   317→    // We simulate offsets relative to PKT (UTC+5)
+   318→    // EST is UTC-5 (offset = -10 hours compared to PKT)
+   319→    // GMT/UTC is UTC+0 (offset = -5 hours compared to PKT)
+   320→    // CET is UTC+1 (offset = -4 hours compared to PKT)
+   321→    // PST is UTC-8 (offset = -13 hours compared to PKT)
+   322→    let offsetFromPKT = -10; // default EST
+   323→    if (simClientTz === 'GMT') offsetFromPKT = -5;
+   324→    if (simClientTz === 'CET') offsetFromPKT = -4;
+   325→    if (simClientTz === 'PST') offsetFromPKT = -13;
+   326→
+   327→    // Convert client time back to PKT: pkt_time = client_time - offsetFromPKT
+   328→    let pktHour = (hh - offsetFromPKT) % 24;
+   329→    if (pktHour < 0) pktHour += 24;
+   330→
+   331→    const ampm = pktHour >= 12 ? 'PM' : 'AM';
+   332→    const displayHour = pktHour % 12 === 0 ? 12 : pktHour % 12;
+   333→    const padMin = mm.toString().padStart(2, '0');
+   334→
+   335→    return `${displayHour}:${padMin} ${ampm} PKT (UTC+5)`;
+   336→  };
+   337→
+   338→  // ==========================================
+   339→  // SHUFFLING & REARRANGING HANDLERS
+   340→  // ==========================================
+   341→
+   342→  // Portfolio items reordering
+   343→  const handleMovePortfolioItem = (serviceId: string, itemIndex: number, direction: 'up' | 'down') => {
+   344→    const targetService = services.find(s => s.id === serviceId);
+   345→    if (!targetService || !targetService.portfolio) return;
+   346→
+   347→    const portList = [...targetService.portfolio];
+   348→    const targetIndex = direction === 'up' ? itemIndex - 1 : itemIndex + 1;
+   349→    if (targetIndex < 0 || targetIndex >= portList.length) return;
+   350→
+   351→    // Swap elements
+   352→    const temp = portList[itemIndex];
+   353→    portList[itemIndex] = portList[targetIndex];
+   354→    portList[targetIndex] = temp;
+   355→
+   356→    // Update global state
+   357→    const updatedServices = services.map(s => s.id === serviceId ? { ...s, portfolio: portList } : s);
+   358→    handleUpdateServices(updatedServices);
+   359→  };
+   360→
+   361→  // Testimonials/Reviews reordering
+   362→  const handleMoveReview = (reviewIndex: number, direction: 'up' | 'down') => {
+   363→    const list = [...ratings];
+   364→    const targetIndex = direction === 'up' ? reviewIndex - 1 : reviewIndex + 1;
+   365→    if (targetIndex < 0 || targetIndex >= list.length) return;
+   366→
+   367→    // Swap elements
+   368→    const temp = list[reviewIndex];
+   369→    list[reviewIndex] = list[targetIndex];
+   370→    list[targetIndex] = temp;
+   371→
+   372→    handleUpdateRatings(list);
+   373→  };
+   374→
+   375→  // Team Members reordering
+   376→  const handleMoveTeamMember = (memberIndex: number, direction: 'up' | 'down') => {
+   377→    const list = [...teamMembers];
+   378→    const targetIndex = direction === 'up' ? memberIndex - 1 : memberIndex + 1;
+   379→    if (targetIndex < 0 || targetIndex >= list.length) return;
+   380→
+   381→    // Swap elements
+   382→    const temp = list[memberIndex];
+   383→    list[memberIndex] = list[targetIndex];
+   384→    list[targetIndex] = temp;
+   385→
+   386→    handleUpdateTeamMembers(list);
+   387→  };
+   388→
+   389→  // Add certification dynamic tag handler
+   390→  const handleAddCertTag = (memberId: string, certName: string) => {
+   391→    if (!certName.trim()) return;
+   392→    const updated = teamMembers.map(m => {
+   393→      if (m.id === memberId) {
+   394→        return {
+   395→          ...m,
+   396→          specialties: [...m.specialties, certName.trim()]
+   397→        };
+   398→      }
+   399→      return m;
+   400→    });
+   401→    handleUpdateTeamMembers(updated);
+   402→    setTempCertValue(prev => ({ ...prev, [memberId]: '' }));
+   403→  };
+   404→
+   405→  // Delete certification tag
+   406→  const handleDeleteCertTag = (memberId: string, indexToRemove: number) => {
+   407→    const updated = teamMembers.map(m => {
+   408→      if (m.id === memberId) {
+   409→        return {
+   410→          ...m,
+   411→          specialties: m.specialties.filter((_, i) => i !== indexToRemove)
+   412→        };
+   413→      }
+   414→      return m;
+   415→    });
+   416→    handleUpdateTeamMembers(updated);
+   417→  };
+   418→
+   419→  // Handle new service block submission
+   420→  const handleCreateNewServiceBlock = (e: React.FormEvent) => {
+   421→    e.preventDefault();
+   422→    if (!newServiceName.trim() || !newServiceDesc.trim()) return;
+   423→
+   424→    const newBlock: Service = {
+   425→      id: `srv-${Date.now()}`,
+   426→      name: newServiceName,
+   427→      accentColor: '#4f46e5',
+   428→      textColor: '#ffffff',
+   429→      tailwindColor: 'indigo',
+   430→      shortDesc: newServiceDesc.slice(0, 100) + '...',
+   431→      overallDescription: newServiceDesc,
+   432→      iconName: 'Sparkles',
+   433→      subServices: [
+   434→        {
+   435→          id: `sub-${Date.now()}`,
+   436→          name: 'Core Support Session',
+   437→          accentColor: '#4f46e5',
+   438→          textColor: '#ffffff',
+   439→          tailwindColor: 'indigo',
+   440→          description: 'Specialist-led consultation.'
+   441→        }
+   442→      ],
+   443→      portfolio: []
+   444→    };
+   445→
+   446→    handleUpdateServices([...services, newBlock]);
+   447→    setSelectedServiceId(newBlock.id);
+   448→    setNewServiceName('');
+   449→    setNewServiceDesc('');
+   450→    setIsCreatingNewService(false);
+   451→  };
+   452→
+   453→  // Handle inline portfolio item submission for selected service
+   454→  const handleAddPortfolioToService = (e: React.FormEvent) => {
+   455→    e.preventDefault();
+   456→    if (!portTitle.trim() || !portDesc.trim()) return;
+   457→
+   458→    const newPort: PortfolioItem = {
+   459→      id: `port-${Date.now()}`,
+   460→      title: portTitle,
+   461→      description: portDesc,
+   462→      skills: portSkillsInput.split(',').map(s => s.trim()).filter(Boolean),
+   463→      mediaType: portMediaType,
+   464→      mediaTitle: portMediaType === 'pdf' ? 'Report_Deliverable.pdf' : 'Interactive Project Portfolio',
+   465→      mediaUrl: portMediaUrl,
+   466→      thumbnailUrl: portMediaUrl
+   467→    };
+   468→
+   469→    const updated = services.map(s => {
+   470→      if (s.id === selectedServiceId) {
+   471→        return {
+   472→          ...s,
+   473→          portfolio: [...(s.portfolio || []), newPort]
+   474→        };
+   475→      }
+   476→      return s;
+   477→    });
+   478→
+   479→    handleUpdateServices(updated);
+   480→    setPortTitle('');
+   481→    setPortDesc('');
+   482→    setPortSkillsInput('');
+   483→    setIsAddingPortfolio(false);
+   484→  };
+   485→
+   486→  // Handle review deletion
+   487→  const handleDeleteRating = (id: string) => {
+   488→    handleUpdateRatings(ratings.filter(r => r.id !== id));
+   489→    // If we were editing this one, cancel
+   490→    if (editingReviewId === id) {
+   491→      setEditingReviewId(null);
+   492→      setReviewFormOpen(false);
+   493→    }
+   494→  };
+   495→
+   496→  // NEW: Begin editing an existing review — pre-fills the same form
+   497→  const handleEditReview = (rate: Rating) => {
+   498→    setEditingReviewId(rate.id);
+   499→    setReviewForm({
+   500→      name: rate.name,
+   501→      designation: rate.designation,
+   502→      company: rate.company,
+   503→      comment: rate.comment,
+   504→      country: rate.country,
+   505→      ratingStars: rate.ratingStars || 5,
+   506→      avatarUrl: rate.avatarUrl
+   507→    });
+   508→    setReviewFormOpen(true);
+   509→  };
+   510→
+   511→  // NEW: Save review (creates if editingReviewId is null, updates otherwise)
+   512→  const handleSubmitReview = (e: React.FormEvent) => {
+   513→    e.preventDefault();
+   514→    if (!reviewForm.name.trim() || !reviewForm.comment.trim()) return;
+   515→
+   516→    if (editingReviewId) {
+   517→      // UPDATE existing
+   518→      const updated = ratings.map(r => r.id === editingReviewId ? {
+   519→        ...r,
+   520→        name: reviewForm.name,
+   521→        designation: reviewForm.designation || 'Client Leader',
+   522→        company: reviewForm.company || 'Direct Agency',
+   523→        comment: reviewForm.comment,
+   524→        country: reviewForm.country,
+   525→        ratingStars: reviewForm.ratingStars,
+   526→        avatarUrl: reviewForm.avatarUrl
+   527→      } : r);
+   528→      handleUpdateRatings(updated);
+   529→      setEditingReviewId(null);
+   530→    } else {
+   531→      // CREATE new
+   532→      const created: Rating = {
+   533→        id: `rate-${Date.now()}`,
+   534→        serviceId: 'bookkeeping',
+   535→        name: reviewForm.name,
+   536→        designation: reviewForm.designation || 'Client Leader',
+   537→        company: reviewForm.company || 'Direct Agency',
+   538→        comment: reviewForm.comment,
+   539→        country: reviewForm.country,
+   540→        ratingStars: reviewForm.ratingStars,
+   541→        isApproved: true,
+   542→        avatarUrl: reviewForm.avatarUrl
+   543→      };
+   544→      handleUpdateRatings([created, ...ratings]);
+   545→    }
+   546→
+   547→    setReviewForm({
+   548→      name: '',
+   549→      designation: '',
+   550→      company: '',
+   551→      comment: '',
+   552→      country: 'United States',
+   553→      ratingStars: 5,
+   554→      avatarUrl: ''
+   555→    });
+   556→    setReviewFormOpen(false);
+   557→  };
+   558→
+   559→  // NEW: Cancel review edit/create
+   560→  const handleCancelReviewForm = () => {
+   561→    setReviewFormOpen(false);
+   562→    setEditingReviewId(null);
+   563→    setReviewForm({
+   564→      name: '',
+   565→      designation: '',
+   566→      company: '',
+   567→      comment: '',
+   568→      country: 'United States',
+   569→      ratingStars: 5,
+   570→      avatarUrl: ''
+   571→    });
+   572→  };
+   573→
+   574→  // NEW: Delete entire service block (with confirmation)
+   575→  const handleDeleteService = (serviceId: string) => {
+   576→    if (!window.confirm('Delete this entire service block? This will also remove all its portfolio items.')) return;
+   577→    const updated = services.filter(s => s.id !== serviceId);
+   578→    handleUpdateServices(updated);
+   579→    // Reset selection if needed
+   580→    if (selectedServiceId === serviceId) {
+   581→      setSelectedServiceId(updated[0]?.id || 'new');
+   582→      setIsCreatingNewService(false);
+   583→    }
+   584→  };
+   585→
+   586→  // NEW: Begin editing a portfolio item — pre-fills inline edit fields
+   587→  const handleStartEditPortfolio = (item: PortfolioItem) => {
+   588→    setEditingPortfolioId(item.id);
+   589→    setEditPortTitle(item.title);
+   590→    setEditPortDesc(item.description);
+   591→    setEditPortSkillsInput(item.skills.join(', '));
+   592→    setEditPortMediaUrl(item.mediaUrl);
+   593→    setEditPortMediaType((item.mediaType as 'image' | 'video' | 'pdf') || 'image');
+   594→  };
+   595→
+   596→  // NEW: Save portfolio edit
+   597→  const handleSaveEditPortfolio = (e: React.FormEvent, serviceId: string, portfolioId: string) => {
+   598→    e.preventDefault();
+   599→    if (!editPortTitle.trim() || !editPortDesc.trim()) return;
+   600→
+   601→    const updated = services.map(s => {
+   602→      if (s.id === serviceId && s.portfolio) {
+   603→        return {
+   604→          ...s,
+   605→          portfolio: s.portfolio.map(p => p.id === portfolioId ? {
+   606→            ...p,
+   607→            title: editPortTitle,
+   608→            description: editPortDesc,
+   609→            skills: editPortSkillsInput.split(',').map(x => x.trim()).filter(Boolean),
+   610→            mediaType: editPortMediaType,
+   611→            mediaUrl: editPortMediaUrl,
+   612→            thumbnailUrl: editPortMediaUrl
+   613→          } : p)
+   614→        };
+   615→      }
+   616→      return s;
+   617→    });
+   618→    handleUpdateServices(updated);
+   619→    setEditingPortfolioId(null);
+   620→  };
+   621→
+   622→  // NEW: Cancel portfolio edit
+   623→  const handleCancelEditPortfolio = () => {
+   624→    setEditingPortfolioId(null);
+   625→  };
+   626→
+   627→  // NEW: Begin editing a team member — pre-fills the form, opens panel
+   628→  const handleEditTeamMember = (member: TeamMember) => {
+   629→    setEditingMemberId(member.id);
+   630→    setEmployeeForm({
+   631→      name: member.name,
+   632→      role: member.role,
+   633→      bio: member.bio,
+   634→      avatarUrl: member.avatarUrl,
+   635→      email: member.email,
+   636→      specialtiesInput: member.specialties.join(', '),
+   637→      isOnline: member.isOnline
+   638→    });
+   639→    setIsOnboardingEmployee(true);
+   640→  };
+   641→
+   642→  // NEW: Save team member (creates or updates)
+   643→  const handleSubmitTeamMember = (e: React.FormEvent) => {
+   644→    e.preventDefault();
+   645→    if (!employeeForm.name.trim() || !employeeForm.role.trim()) return;
+   646→
+   647→    if (editingMemberId) {
+   648→      // UPDATE existing member — preserve specialties if input empty
+   649→      const updated = teamMembers.map(m => m.id === editingMemberId ? {
+   650→        ...m,
+   651→        name: employeeForm.name,
+   652→        role: employeeForm.role,
+   653→        bio: employeeForm.bio || 'Vetted consultant delivering secure corporate solutions.',
+   654→        avatarUrl: employeeForm.avatarUrl,
+   655→        email: employeeForm.email || 'consult@onestop.com',
+   656→        specialties: employeeForm.specialtiesInput.trim()
+   657→          ? employeeForm.specialtiesInput.split(',').map(s => s.trim()).filter(Boolean)
+   658→          : m.specialties,
+   659→        isOnline: employeeForm.isOnline
+   660→      } : m);
+   661→      handleUpdateTeamMembers(updated);
+   662→      setEditingMemberId(null);
+   663→    } else {
+   664→      // CREATE new
+   665→      const onboarded: TeamMember = {
+   666→        id: `member-${Date.now()}`,
+   667→        name: employeeForm.name,
+   668→        role: employeeForm.role,
+   669→        bio: employeeForm.bio || 'Vetted consultant delivering secure corporate solutions.',
+   670→        avatarUrl: employeeForm.avatarUrl || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+   671→        email: employeeForm.email || 'consult@onestop.com',
+   672→        specialties: employeeForm.specialtiesInput.split(',').map(s => s.trim()).filter(Boolean),
+   673→        isOnline: employeeForm.isOnline
+   674→      };
+   675→      handleUpdateTeamMembers([...teamMembers, onboarded]);
+   676→    }
+   677→
+   678→    setEmployeeForm({
+   679→      name: '',
+   680→      role: '',
+   681→      bio: '',
+   682→      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+   683→      email: '',
+   684→      specialtiesInput: '',
+   685→      isOnline: true
+   686→    });
+   687→    setIsOnboardingEmployee(false);
+   688→  };
+   689→
+   690→  // NEW: Cancel team member edit/create
+   691→  const handleCancelTeamMemberForm = () => {
+   692→    setIsOnboardingEmployee(false);
+   693→    setEditingMemberId(null);
+   694→    setEmployeeForm({
+   695→      name: '',
+   696→      role: '',
+   697→      bio: '',
+   698→      avatarUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+   699→      email: '',
+   700→      specialtiesInput: '',
+   701→      isOnline: true
+   702→    });
+   703→  };
+   704→
+   705→  // NEW: Begin editing a channel — pre-fills the form fields
+   706→  const handleEditChannel = (idx: number) => {
+   707→    const ch = channels[idx];
+   708→    if (!ch) return;
+   709→    setEditingChannelIdx(idx);
+   710→    setNewChannelName(ch.name);
+   711→    setNewChannelType(ch.type);
+   712→    setNewChannelUrl(ch.url);
+   713→  };
+   714→
+   715→  // NEW: Cancel channel edit/create
+   716→  const handleCancelChannelForm = () => {
+   717→    setEditingChannelIdx(-1);
+   718→    setNewChannelName('');
+   719→    setNewChannelType('LinkedIn');
+   720→    setNewChannelUrl('');
+   721→  };
+   722→
+   723→  // NEW: Submit channel (create or update)
+   724→  const handleSubmitChannel = (e: React.FormEvent) => {
+   725→    e.preventDefault();
+   726→    if (!newChannelName.trim() || !newChannelUrl.trim()) return;
+   727→
+   728→    if (editingChannelIdx >= 0) {
+   729→      // UPDATE
+   730→      const copy = [...channels];
+   731→      copy[editingChannelIdx] = {
+   732→        name: newChannelName,
+   733→        type: newChannelType,
+   734→        url: newChannelUrl
+   735→      };
+   736→      setChannels(copy);
+   737→      setEditingChannelIdx(-1);
+   738→    } else {
+   739→      // CREATE
+   740→      setChannels([...channels, {
+   741→        name: newChannelName,
+   742→        type: newChannelType,
+   743→        url: newChannelUrl
+   744→      }]);
+   745→    }
+   746→    setNewChannelName('');
+   747→    setNewChannelUrl('');
+   748→  };
+   749→
+   750→  // Add country visits log
+   751→  const handleAddCountryVisits = (e: React.FormEvent) => {
+   752→    e.preventDefault();
+   753→    if (!newCountryName.trim()) return;
+   754→    const countVal = parseInt(newCountryVisits) || 0;
+   755→
+   756→    // Check if country already exists
+   757→    const existingIndex = countryList.findIndex(c => c.name.toLowerCase() === newCountryName.toLowerCase());
+   758→    if (existingIndex !== -1) {
+   759→      const copy = [...countryList];
+   760→      copy[existingIndex].visits += countVal;
+   761→      setCountryList(copy);
+   762→    } else {
+   763→      setCountryList([...countryList, {
+   764→        name: newCountryName,
+   765→        code: newCountryName.slice(0, 2).toUpperCase(),
+   766→        visits: countVal
+   767→      }]);
+   768→    }
+   769→
+   770→    setNewCountryName('');
+   771→    setNewCountryVisits('10');
+   772→  };
+   773→
+   774→  // SVG calculations for Conversion Pie Chart
+   775→  const getPieSlices = () => {
+   776→    const total = conversionStats.email + conversionStats.whatsapp + conversionStats.alternative;
+   777→    if (total === 0) return [];
+   778→    
+   779→    let cumulativeAngle = 0;
+   780→    const slices = [
+   781→      { key: 'Email', value: conversionStats.email, color: 'rgb(59, 130, 246)' },
+   782→      { key: 'WhatsApp', value: conversionStats.whatsapp, color: 'rgb(34, 197, 94)' },
+   783→      { key: 'Alternative', value: conversionStats.alternative, color: 'rgb(148, 163, 184)' }
+   784→    ];
+   785→
+   786→    return slices.map(s => {
+   787→      const percentage = (s.value / total) * 100;
+   788→      const angle = (s.value / total) * 360;
+   789→      const startAngle = cumulativeAngle;
+   790→      cumulativeAngle += angle;
+   791→
+   792→      // Calculate path arc values for SVG sector
+   793→      const radStart = (startAngle - 90) * (Math.PI / 180);
+   794→      const radEnd = (cumulativeAngle - 90) * (Math.PI / 180);
+   795→
+   796→      const r = 40; // radius
+   797→      const cx = 50; // center X
+   798→      const cy = 50; // center Y
+   799→
+   800→      const x1 = cx + r * Math.cos(radStart);
+   801→      const y1 = cy + r * Math.sin(radStart);
+   802→      const x2 = cx + r * Math.cos(radEnd);
+   803→      const y2 = cy + r * Math.sin(radEnd);
+   804→
+   805→      const largeArcFlag = angle > 180 ? 1 : 0;
+   806→
+   807→      // Arc path
+   808→      const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+   809→
+   810→      return {
+   811→        ...s,
+   812→        percentage,
+   813→        pathData
+   814→      };
+   815→    });
+   816→  };
+   817→
+   818→  const activeService = services.find(s => s.id === selectedServiceId) || services[0];
+   819→
+   820→  return (
+   821→    <div className="min-h-screen bg-slate-950 text-slate-100 flex relative overflow-hidden font-sans">
+   822→      
+   823→      {/* Absolute radiant ambient lights meshes */}
+   824→      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-indigo-600/10 blur-[130px] pointer-events-none" />
+   825→      <div className="absolute bottom-[-15%] right-[-10%] w-[600px] h-[600px] rounded-full bg-purple-600/10 blur-[130px] pointer-events-none" />
+   826→
+   827→      {/* Persistence Left Glass Sidebar Layout */}
+   828→      <aside className="w-80 bg-slate-900/60 backdrop-blur-2xl border-r border-white/5 p-6 flex flex-col justify-between relative z-10 shrink-0">
+   829→        <div>
+   830→          {/* ← Exit Workspace anchor link at peak */}
+   831→          <button
+   832→            onClick={onLogout}
+   833→            className="w-full mb-8 px-4 py-3 rounded-2xl text-xs font-bold text-slate-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10 flex items-center justify-center space-x-2.5 transition-all cursor-pointer active:scale-[0.98]"
+   834→          >
+   835→            <ArrowLeft className="w-4 h-4 text-slate-400" />
+   836→            <span>← Exit Workspace & View Live Site</span>
+   837→          </button>
+   838→
+   839→          {/* Control center Branding panel */}
+   840→          <div className="flex items-center space-x-3 mb-10 pb-6 border-b border-white/5">
+   841→            <div className="relative p-3 bg-indigo-600 rounded-2xl text-white shadow-xl">
+   842→              <Shield className="w-5 h-5 text-indigo-100" />
+   843→              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 border border-slate-950 rounded-full animate-pulse" />
+   844→            </div>
+   845→            <div>
+   846→              <h2 className="text-sm font-black tracking-wider text-white uppercase font-sans">
+   847→                OneStop Workstation
+   848→              </h2>
+   849→              <span className="text-[10px] font-mono text-indigo-400 font-bold tracking-widest uppercase block mt-1">
+   850→                Admin Control Room
+   851→              </span>
+   852→            </div>
+   853→          </div>
+   854→
+   855→          {/* Administrative Page View Toggle List */}
+   856→          <nav className="space-y-2">
+   857→            {[
+   858→              { id: 'analytics', label: 'Dashboard Analytics', icon: LayoutDashboard, color: 'text-indigo-400' },
+   859→              { id: 'services', label: 'Services & Portfolios', icon: Briefcase, color: 'text-sky-400' },
+   860→              { id: 'reviews', label: 'Client Feedback Hub', icon: StarHalf, color: 'text-amber-400' },
+   861→              { id: 'team', label: 'Team & Badges', icon: UserPlus, color: 'text-emerald-400' },
+   862→              { id: 'contacts', label: 'Contact Channels', icon: Globe2, color: 'text-rose-400' }
+   863→            ].map(tab => {
+   864→              const IconComp = tab.icon;
+   865→              const isActive = activeTab === tab.id;
+   866→              return (
+   867→                <button
+   868→                  key={tab.id}
+   869→                  onClick={() => setActiveTab(tab.id as ActiveTab)}
+   870→                  className={`w-full px-4 py-3.5 rounded-2xl text-xs font-bold flex items-center space-x-3.5 transition-all duration-300 relative ${
+   871→                    isActive
+   872→                      ? 'bg-gradient-to-r from-indigo-500/15 to-indigo-500/5 text-white border-l-4 border-indigo-500 pl-3.5 shadow-md border border-white/10'
+   873→                      : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+   874→                  }`}
+   875→                >
+   876→                  <IconComp className={`w-4.5 h-4.5 ${tab.color}`} />
+   877→                  <span>{tab.label}</span>
+   878→                  {isActive && (
+   879→                    <motion.div
+   880→                      layoutId="active-nav-pill"
+   881→                      className="absolute right-3.5 w-1.5 h-1.5 rounded-full bg-indigo-400"
+   882→                    />
+   883→                  )}
+   884→                </button>
+   885→              );
+   886→            })}
+   887→          </nav>
+   888→        </div>
+   889→
+   890→        {/* Action Panel and Logs Status */}
+   891→        <div className="pt-6 border-t border-white/5 space-y-4">
+   892→          <div className="bg-slate-950/50 border border-white/5 p-3.5 rounded-2xl text-center">
+   893→            <div className="flex items-center justify-center space-x-1.5 text-[9px] font-mono font-bold text-slate-500 tracking-widest uppercase">
+   894→              <Lock className="w-3.5 h-3.5 text-indigo-400" />
+   895→              <span>Admin Authentication Active</span>
+   896→            </div>
+   897→          </div>
+   898→          <button
+   899→            onClick={onLogout}
+   900→            className="w-full px-4 py-3.5 rounded-2xl text-xs font-black text-rose-300 hover:text-rose-200 bg-rose-500/10 hover:bg-rose-500/15 border border-rose-500/20 hover:border-rose-500/35 flex items-center justify-center space-x-2 transition-all cursor-pointer active:scale-[0.98]"
+   901→          >
+   902→            <LogOut className="w-4 h-4 shrink-0" />
+   903→            <span>Terminate Admin Session</span>
+   904→          </button>
+   905→        </div>
+   906→      </aside>
+   907→
+   908→      {/* Main Viewport Workspace Container */}
+   909→      <main className="admin-scroll flex-1 overflow-y-auto p-10 relative z-10">
+   910→        
+   911→        {/* Main Workstation Header */}
+   912→        <header className="flex items-center justify-between mb-10 pb-6 border-b border-white/5">
+   913→          <div>
+   914→            <div className="flex items-center gap-2.5">
+   915→              <span className="text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-md uppercase tracking-wider">
+   916→                Workspace Panel Active
+   917→              </span>
+   918→              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+   919→              <span className="text-xs text-slate-500 font-mono">UTC-5 Terminal synced</span>
+   920→            </div>
+   921→            <h1 className="text-3xl font-black text-white mt-2 tracking-tight">
+   922→              {activeTab === 'analytics' && 'Dashboard Analytics & System Overrides'}
+   923→              {activeTab === 'services' && 'Services & Dynamic Portfolio Workspace'}
+   924→              {activeTab === 'reviews' && 'Client Feedback Hub & Testimony Control'}
+   925→              {activeTab === 'team' && 'Team Badges & Corporate Employee Onboarding'}
+   926→              {activeTab === 'contacts' && 'Contact Channels & PKT Booking Translation'}
+   927→            </h1>
+   928→            <p className="text-sm text-slate-400 mt-1">
+   929→              {activeTab === 'analytics' && 'Review client geographic coverage, live SVG conversion shares, and star metrics.'}
+   930→              {activeTab === 'services' && 'Inline text area editing of titles, dashboard catalogs, and Upwork portfolios rearrangement.'}
+   931→              {activeTab === 'reviews' && 'Moderate customer testimonials, flag overlays, and custom priority sorting.'}
+   932→              {activeTab === 'team' && 'Onboard specialists, shuffle grid priorities, and dynamically append certification badges.'}
+   933→              {activeTab === 'contacts' && 'Configure custom routing nodes, and simulate Pakistan Standard Time timezone translations.'}
+   934→            </p>
+   935→          </div>
+   936→
+   937→          {/* Server Sync telemetry widget */}
+   938→          <div className="flex items-center space-x-3.5 bg-slate-900/60 px-5 py-3 rounded-2xl border border-white/5">
+   939→            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+   940→            <div className="text-left font-mono">
+   941→              <div className="text-[10px] font-bold text-white leading-none">AUTO-ECHO ACTIVE</div>
+   942→              <div className="text-[9px] text-slate-500 mt-1 leading-none">Vite HMR Overruled</div>
+   943→            </div>
+   944→          </div>
+   945→        </header>
+   946→
+   947→        {/* Compartment Swapping Zone */}
+   948→        <AnimatePresence mode="wait">
+   949→          <motion.div
+   950→            key={activeTab}
+   951→            initial={{ opacity: 0, y: 12 }}
+   952→            animate={{ opacity: 1, y: 0 }}
+   953→            exit={{ opacity: 0, y: -12 }}
+   954→            transition={{ duration: 0.25 }}
+   955→            className="space-y-8"
+   956→          >
+   957→            
+   958→            {/* ============================================================== */}
+   959→            {/* VIEW A: DASHBOARD ANALYTICS (Command Center)                   */}
+   960→            {/* ============================================================== */}
+   961→            {activeTab === 'analytics' && (
+   962→              <AnalyticsTab
+   963→                stats={stats}
+   964→                onUpdateStats={handleUpdateStats}
+   965→                services={services}
+   966→                ratings={ratings}
+   967→              />
+   968→            )}
+   969→
+   970→            {/* ============================================================== */}
+   971→            {/* VIEW B: SERVICES & PORTFOLIOS WORKSPACE (Two-Column Builder)   */}
+   972→            {/* ============================================================== */}
+   973→            {activeTab === 'services' && (
+   974→              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+   975→                
+   976→                {/* Left Column: Stacked list of existing services & creation anchor */}
+   977→                <div className="space-y-4">
+   978→                  <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-5 shadow-xl">
+   979→                    <div className="flex items-center justify-between mb-4">
+   980→                      <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-widest">
+   981→                        Available Services List
+   982→                      </span>
+   983→                      <span className="text-[10px] text-slate-500 font-mono">{services.length} categories</span>
+   984→                    </div>
+   985→
+   986→                    {/* Dashed creation button at the peak of the stack */}
+   987→                    <button
+   988→                      onClick={() => {
+   989→                        setIsCreatingNewService(true);
+   990→                        setSelectedServiceId('new');
+   991→                      }}
+   992→                      className={`w-full py-4 mb-4 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center space-y-1 transition-all cursor-pointer ${
+   993→                        isCreatingNewService
+   994→                          ? 'border-indigo-500 bg-indigo-500/10 text-white'
+   995→                          : 'border-slate-800 hover:border-slate-700 bg-slate-950/40 text-slate-400 hover:text-white'
+   996→                      }`}
+   997→                    >
+   998→                      <PlusCircle className="w-5 h-5" />
+   999→                      <span className="text-xs font-bold font-sans">+ Create New Service Block</span>
+  1000→                    </button>
+  1001→
+  1002→                    {/* Vertically stacked list */}
+  1003→                    <div className="space-y-2">
+  1004→                      {services.map(s => {
+  1005→                        const isSelected = selectedServiceId === s.id && !isCreatingNewService;
+  1006→                        return (
+  1007→                          <div
+  1008→                            key={s.id}
+  1009→                            className={`w-full text-left p-3.5 rounded-2xl border text-xs flex flex-col justify-between transition-all ${
+  1010→                              isSelected
+  1011→                                ? 'bg-indigo-600/15 border-indigo-500/80 text-white shadow-md'
+  1012→                                : 'bg-slate-950/40 border-white/5 text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+  1013→                            }`}
+  1014→                          >
+  1015→                            <button
+  1016→                              type="button"
+  1017→                              onClick={() => {
+  1018→                                setSelectedServiceId(s.id);
+  1019→                                setIsCreatingNewService(false);
+  1020→                                setEditingPortfolioId(null);
+  1021→                              }}
+  1022→                              className="text-left w-full"
+  1023→                            >
+  1024→                              <div className="flex items-center justify-between w-full">
+  1025→                                <span className="font-bold text-slate-200 text-sm truncate">{s.name}</span>
+  1026→                                <span className="text-[9px] font-mono bg-slate-950 px-2 py-0.5 rounded border border-white/5 text-slate-400 shrink-0">
+  1027→                                  {s.portfolio?.length || 0} portfolios
+  1028→                                </span>
+  1029→                              </div>
+  1030→                              <p className="text-[10px] text-slate-500 mt-2 truncate w-full leading-normal">
+  1031→                                {s.overallDescription || s.shortDesc}
+  1032→                              </p>
+  1033→                            </button>
+  1034→                            {/* Row action: Delete service (with edit active indicator) */}
+  1035→                            <div className="flex items-center justify-end gap-1.5 mt-2 pt-2 border-t border-white/5">
+  1036→                              {isSelected && (
+  1037→                                <span className="text-[9px] font-mono text-indigo-400 uppercase tracking-wider mr-auto">
+  1038→                                  ● Editing
+  1039→                                </span>
+  1040→                              )}
+  1041→                              <button
+  1042→                                type="button"
+  1043→                                onClick={() => handleDeleteService(s.id)}
+  1044→                                className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/10 rounded-lg transition-colors cursor-pointer"
+  1045→                                title="Delete entire service block"
+  1046→                              >
+  1047→                                <Trash2 className="w-3.5 h-3.5" />
+  1048→                              </button>
+  1049→                            </div>
+  1050→                          </div>
+  1051→                        );
+  1052→                      })}
+  1053→                    </div>
+  1054→                  </div>
+  1055→                </div>
+  1056→
+  1057→                {/* Right columns (takes remaining 2 columns): Active editing zone */}
+  1058→                <div className="lg:col-span-2 space-y-6">
+  1059→                  
+  1060→                  {isCreatingNewService ? (
+  1061→                    /* Creation UI form for a brand new service block */
+  1062→                    <form onSubmit={handleCreateNewServiceBlock} className="bg-slate-900/40 backdrop-blur-xl border border-indigo-500/30 rounded-3xl p-6 shadow-xl space-y-4">
+  1063→                      <div className="border-b border-white/5 pb-3.5 flex items-center justify-between">
+  1064→                        <h3 className="text-lg font-black text-white flex items-center gap-2">
+  1065→                          <Sparkles className="w-5 h-5 text-indigo-400" />
+  1066→                          New Service Block Onboarding Profile
+  1067→                        </h3>
+  1068→                        <button
+  1069→                          type="button"
+  1070→                          onClick={() => {
+  1071→                            setIsCreatingNewService(false);
+  1072→                            setSelectedServiceId(services[0]?.id || 'new');
+  1073→                          }}
+  1074→                          className="text-xs font-mono font-bold text-slate-400 hover:text-white"
+  1075→                        >
+  1076→                          Cancel
+  1077→                        </button>
+  1078→                      </div>
+  1079→
+  1080→                      <div className="space-y-1.5">
+  1081→                        <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-indigo-400 pl-1">
+  1082→                          Service Offering Title
+  1083→                        </label>
+  1084→                        <input
+  1085→                          type="text"
+  1086→                          required
+  1087→                          placeholder="e.g., Forensic GAAP Reconstruction"
+  1088→                          value={newServiceName}
+  1089→                          onChange={(e) => setNewServiceName(e.target.value)}
+  1090→                          className="w-full bg-slate-950/65 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white focus:outline-none focus:border-indigo-500/80"
+  1091→                        />
+  1092→                      </div>
+  1093→
+  1094→                      <div className="space-y-1.5">
+  1095→                        <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-indigo-400 pl-1">
+  1096→                          Deep Service Description
+  1097→                        </label>
+  1098→                        <textarea
+  1099→                          required
+  1100→                          rows={4}
+  1101→                          placeholder="Explain what technologies, methodologies, and value this service offering delivers to global clients."
+  1102→                          value={newServiceDesc}
+  1103→                          onChange={(e) => setNewServiceDesc(e.target.value)}
+  1104→                          className="w-full bg-slate-950/65 border border-white/10 rounded-2xl p-4 text-xs text-white focus:outline-none focus:border-indigo-500/80 font-sans"
+  1105→                        />
+  1106→                      </div>
+  1107→
+  1108→                      <button
+  1109→                        type="submit"
+  1110→                        className="w-full py-3 bg-gradient-to-r from-indigo-500 to-sky-500 hover:from-indigo-600 hover:to-sky-600 text-white font-extrabold rounded-2xl text-xs transition-all flex items-center justify-center space-x-2 cursor-pointer shadow-lg active:scale-[0.98]"
+  1111→                      >
+  1112→                        <CheckCircle className="w-4 h-4" />
+  1113→                        <span>Publish Service Catalog Block</span>
+  1114→                      </button>
+  1115→                    </form>
+  1116→                  ) : activeService ? (
+  1117→                    /* Editor UI for currently selected existing service catalog */
+  1118→                    <div className="space-y-6">
+  1119→                      
+  1120→                      {/* Section 1: In-line editable Title and Description fields */}
+  1121→                      <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
+  1122→                        <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-widest block">
+  1123→                          Catalog Settings Override
+  1124→                        </span>
+  1125→
+  1126→                        <div className="space-y-4">
+  1127→                          <div className="space-y-1.5">
+  1128→                            <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 pl-1">
+  1129→                              Catalog Category Heading
+  1130→                            </label>
+  1131→                            <input
+  1132→                              type="text"
+  1133→                              value={activeService.name}
+  1134→                              onChange={(e) => {
+  1135→                                const updated = services.map(s => s.id === activeService.id ? { ...s, name: e.target.value } : s);
+  1136→                                handleUpdateServices(updated);
+  1137→                              }}
+  1138→                              className="w-full bg-slate-950/60 border border-white/10 rounded-2xl px-4 py-3 text-xs text-white font-sans font-bold focus:outline-none focus:border-indigo-500/80"
+  1139→                            />
+  1140→                          </div>
+  1141→
+  1142→                          <div className="space-y-1.5">
+  1143→                            <label className="text-[10px] font-mono font-bold uppercase tracking-widest text-slate-500 pl-1">
+  1144→                              Extended Overview Description
+  1145→                            </label>
+  1146→                            <textarea
+  1147→                              rows={3}
+  1148→                              value={activeService.overallDescription || activeService.shortDesc}
+  1149→                              onChange={(e) => {
+  1150→                                const updated = services.map(s => s.id === activeService.id ? { ...s, overallDescription: e.target.value, shortDesc: e.target.value.slice(0, 100) + '...' } : s);
+  1151→                                handleUpdateServices(updated);
+  1152→                              }}
+  1153→                              className="w-full bg-slate-950/60 border border-white/10 rounded-2xl p-4 text-xs text-white font-sans leading-relaxed focus:outline-none focus:border-indigo-500/80"
+  1154→                            />
+  1155→                          </div>
+  1156→                        </div>
+  1157→                      </div>
+  1158→
+  1159→                      {/* Section 2: Nested Portfolio Workspace (Upwork-Style Management Layer) */}
+  1160→                      <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl space-y-6">
+  1161→                        <div className="flex items-center justify-between border-b border-white/5 pb-4">
+  1162→                          <div>
+  1163→                            <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
+  1164→                              <Briefcase className="w-4.5 h-4.5 text-sky-400" />
+  1165→                              Nested Portfolio Workspace (Upwork-Style Case Studies)
+  1166→                            </h3>
+  1167→                            <p className="text-[11px] text-slate-400 mt-0.5">
+  1168→                              Manage visual deliverables attached to this service. Shuffling or deleting updates the public portfolio array instantly.
+  1169→                            </p>
+  1170→                          </div>
+  1171→
+  1172→                          <button
+  1173→                            onClick={() => setIsAddingPortfolio(!isAddingPortfolio)}
+  1174→                            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 cursor-pointer active:scale-[0.97]"
+  1175→                          >
+  1176→                            {isAddingPortfolio ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+  1177→                            <span>{isAddingPortfolio ? 'Collapse Form' : 'New Project Card'}</span>
+  1178→                          </button>
+  1179→                        </div>
+  1180→
+  1181→                        {/* Inline Expandable Portfolio Creation Form */}
+  1182→                        {isAddingPortfolio && (
+  1183→                          <motion.form 
+  1184→                            initial={{ opacity: 0, height: 0 }}
+  1185→                            animate={{ opacity: 1, height: 'auto' }}
+  1186→                            onSubmit={handleAddPortfolioToService}
+  1187→                            className="bg-slate-950/60 border border-indigo-500/20 p-5 rounded-2xl space-y-4 overflow-hidden"
+  1188→                          >
+  1189→                            <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest">
+  1190→                              Onboard New Portfolio Deliverable Case
+  1191→                            </h4>
+  1192→
+  1193→                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  1194→                              <div className="space-y-1.5">
+  1195→                                <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Project Case Title</label>
+  1196→                                <input
+  1197→                                  type="text"
+  1198→                                  required
+  1199→                                  placeholder="e.g., 3-Year Bookkeeping Catch-up & GAAP Audit"
+  1200→                                  value={portTitle}
+  1201→                                  onChange={(e) => setPortTitle(e.target.value)}
+  1202→                                  className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+  1203→                                />
+  1204→                              </div>
+  1205→
+  1206→                              <div className="space-y-1.5">
+  1207→                                <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Skills Badges (Comma Separated)</label>
+  1208→                                <input
+  1209→                                  type="text"
+  1210→                                  placeholder="QuickBooks Online, Audit, Cleanup"
+  1211→                                  value={portSkillsInput}
+  1212→                                  onChange={(e) => setPortSkillsInput(e.target.value)}
+  1213→                                  className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+  1214→                                />
+  1215→                              </div>
+  1216→                            </div>
+  1217→
+  1218→                            <div className="space-y-1.5">
+  1219→                              <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Brief Description / Narrative</label>
+  1220→                              <textarea
+  1221→                                required
+  1222→                                rows={2}
+  1223→                                placeholder="State the business problem, historical mess parameters, and active resolutions achieved."
+  1224→                                value={portDesc}
+  1225→                                onChange={(e) => setPortDesc(e.target.value)}
+  1226→                                className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs text-white focus:outline-none"
+  1227→                              />
+  1228→                            </div>
+  1229→
+  1230→                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  1231→                              <div className="space-y-1.5">
+  1232→                                <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Media Format Type</label>
+  1233→                                <select
+  1234→                                  value={portMediaType}
+  1235→                                  onChange={(e) => setPortMediaType(e.target.value as any)}
+  1236→                                  className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+  1237→                                >
+  1238→                                  <option value="image">Static High-Res Image (Mockup/Dashboard)</option>
+  1239→                                  <option value="video">Interactive Video Walkthrough (Loom/MP4)</option>
+  1240→                                  <option value="pdf">Document Audit PDF (Cert/Ledger Report)</option>
+  1241→                                </select>
+  1242→                              </div>
+  1243→
+  1244→                              <div className="col-span-2 space-y-1.5">
+  1245→                                <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Project Banner Asset / Media URL</label>
+  1246→                                <input
+  1247→                                  type="text"
+  1248→                                  value={portMediaUrl}
+  1249→                                  onChange={(e) => setPortMediaUrl(e.target.value)}
+  1250→                                  className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none"
+  1251→                                />
+  1252→                              </div>
+  1253→                            </div>
+  1254→
+  1255→                            <button
+  1256→                              type="submit"
+  1257→                              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-600/10"
+  1258→                            >
+  1259→                              Add Project Card to Grid Catalog
+  1260→                            </button>
+  1261→                          </motion.form>
+  1262→                        )}
+  1263→
+  1264→                        {/* List of Attached Portfolio Items with "Rearrange" Protocol and movement arrow anchors */}
+  1265→                        <div className="space-y-3.5">
+  1266→                          {(!activeService.portfolio || activeService.portfolio.length === 0) ? (
+  1267→                            <div className="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl">
+  1268→                              <p className="text-xs text-slate-500 font-mono">No active visual portfolio cards found attached to this category.</p>
+  1269→                            </div>
+  1270→                          ) : (
+  1271→                            <div className="space-y-3">
+  1272→                              {activeService.portfolio.map((item, index) => {
+  1273→                                const isEditing = editingPortfolioId === item.id;
+  1274→                                return (
+  1275→                                <motion.div
+  1276→                                  layout
+  1277→                                  key={item.id}
+  1278→                                  className="p-4 bg-slate-950/60 border border-white/5 hover:border-white/10 rounded-2xl transition-all"
+  1279→                                >
+  1280→                                  {isEditing ? (
+  1281→                                    /* INLINE EDIT FORM for portfolio item */
+  1282→                                    <form
+  1283→                                      onSubmit={(e) => handleSaveEditPortfolio(e, activeService.id, item.id)}
+  1284→                                      className="space-y-3"
+  1285→                                    >
+  1286→                                      <div className="flex items-center justify-between border-b border-white/5 pb-2">
+  1287→                                        <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+  1288→                                          <Pencil className="w-3 h-3" /> Editing Portfolio Card
+  1289→                                        </span>
+  1290→                                        <button
+  1291→                                          type="button"
+  1292→                                          onClick={handleCancelEditPortfolio}
+  1293→                                          className="text-[10px] font-mono font-bold text-slate-400 hover:text-white flex items-center gap-1"
+  1294→                                        >
+  1295→                                          <XCircle className="w-3 h-3" /> Cancel
+  1296→                                        </button>
+  1297→                                      </div>
+  1298→
+  1299→                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  1300→                                        <div className="space-y-1">
+  1301→                                          <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Project Case Title</label>
+  1302→                                          <input
+  1303→                                            type="text"
+  1304→                                            required
+  1305→                                            value={editPortTitle}
+  1306→                                            onChange={(e) => setEditPortTitle(e.target.value)}
+  1307→                                            className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/60"
+  1308→                                          />
+  1309→                                        </div>
+  1310→                                        <div className="space-y-1">
+  1311→                                          <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Skills Badges (CSV)</label>
+  1312→                                          <input
+  1313→                                            type="text"
+  1314→                                            value={editPortSkillsInput}
+  1315→                                            onChange={(e) => setEditPortSkillsInput(e.target.value)}
+  1316→                                            className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500/60"
+  1317→                                          />
+  1318→                                        </div>
+  1319→                                      </div>
+  1320→
+  1321→                                      <div className="space-y-1">
+  1322→                                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Description</label>
+  1323→                                        <textarea
+  1324→                                          required
+  1325→                                          rows={2}
+  1326→                                          value={editPortDesc}
+  1327→                                          onChange={(e) => setEditPortDesc(e.target.value)}
+  1328→                                          className="w-full bg-slate-900 border border-white/5 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500/60"
+  1329→                                        />
+  1330→                                      </div>
+  1331→
+  1332→                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+  1333→                                        <div className="space-y-1">
+  1334→                                          <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Media Type</label>
+  1335→                                          <select
+  1336→                                            value={editPortMediaType}
+  1337→                                            onChange={(e) => setEditPortMediaType(e.target.value as any)}
+  1338→                                            className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+  1339→                                          >
+  1340→                                            <option value="image">Image</option>
+  1341→                                            <option value="video">Video</option>
+  1342→                                            <option value="pdf">PDF Document</option>
+  1343→                                          </select>
+  1344→                                        </div>
+  1345→                                        <div className="col-span-2 space-y-1">
+  1346→                                          <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Media URL</label>
+  1347→                                          <input
+  1348→                                            type="text"
+  1349→                                            value={editPortMediaUrl}
+  1350→                                            onChange={(e) => setEditPortMediaUrl(e.target.value)}
+  1351→                                            className="w-full bg-slate-900 border border-white/5 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500/60"
+  1352→                                          />
+  1353→                                        </div>
+  1354→                                      </div>
+  1355→
+  1356→                                      <button
+  1357→                                        type="submit"
+  1358→                                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
+  1359→                                      >
+  1360→                                        <Save className="w-4 h-4" /> Save Portfolio Changes
+  1361→                                      </button>
+  1362→                                    </form>
+  1363→                                  ) : (
+  1364→                                    <div className="flex items-start justify-between gap-4">
+  1365→                                      {/* Thumbnail & Info Block */}
+  1366→                                      <div className="flex items-start space-x-4">
+  1367→                                        <img
+  1368→                                          src={item.thumbnailUrl || item.mediaUrl}
+  1369→                                          alt={item.title}
+  1370→                                          className="w-20 h-16 rounded-xl object-cover border border-white/5 shrink-0"
+  1371→                                          referrerPolicy="no-referrer"
+  1372→                                        />
+  1373→                                        <div className="space-y-1.5">
+  1374→                                          <h4 className="text-xs font-bold text-white font-sans">{item.title}</h4>
+  1375→                                          
+  1376→                                          {/* Tags rows */}
+  1377→                                          <div className="flex flex-wrap gap-1">
+  1378→                                            {item.skills.map(sk => (
+  1379→                                              <span key={sk} className="text-[9px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/10 px-1.5 py-0.5 rounded uppercase font-mono font-bold">
+  1380→                                                {sk}
+  1381→                                              </span>
+  1382→                                            ))}
+  1383→                                          </div>
+  1384→                                          
+  1385→                                          <p className="text-[10px] text-slate-400 leading-relaxed font-sans max-w-md line-clamp-2">
+  1386→                                            {item.description}
+  1387→                                          </p>
+  1388→                                        </div>
+  1389→                                      </div>
+  1390→
+  1391→                                      {/* Shuffling Ordering Controls & Trash Action */}
+  1392→                                      <div className="flex items-center space-x-2 shrink-0">
+  1393→                                        
+  1394→                                        {/* Grip visual handle */}
+  1395→                                        <div className="p-1.5 text-slate-600 cursor-grab active:cursor-grabbing" title="Visual Rearrange Handle">
+  1396→                                          <GripVertical className="w-4 h-4" />
+  1397→                                        </div>
+  1398→
+  1399→                                        {/* Action shift selectors */}
+  1400→                                        <div className="flex flex-col space-y-1">
+  1401→                                          <button
+  1402→                                            disabled={index === 0}
+  1403→                                            onClick={() => handleMovePortfolioItem(activeService.id, index, 'up')}
+  1404→                                            className="p-1 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+  1405→                                            title="Move Project Case Up"
+  1406→                                          >
+  1407→                                            <ChevronUp className="w-3.5 h-3.5" />
+  1408→                                          </button>
+  1409→                                          <button
+  1410→                                            disabled={index === activeService.portfolio.length - 1}
+  1411→                                            onClick={() => handleMovePortfolioItem(activeService.id, index, 'down')}
+  1412→                                            className="p-1 bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white rounded disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+  1413→                                            title="Move Project Case Down"
+  1414→                                          >
+  1415→                                            <ChevronDown className="w-3.5 h-3.5" />
+  1416→                                          </button>
+  1417→                                        </div>
+  1418→
+  1419→                                        {/* NEW: Edit Portfolio button */}
+  1420→                                        <button
+  1421→                                          onClick={() => handleStartEditPortfolio(item)}
+  1422→                                          className="p-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-xl border border-indigo-500/10 transition-colors cursor-pointer"
+  1423→                                          title="Edit Portfolio Card"
+  1424→                                        >
+  1425→                                          <Pencil className="w-4 h-4" />
+  1426→                                        </button>
+  1427→
+  1428→                                        {/* Destructive deletion */}
+  1429→                                        <button
+  1430→                                          onClick={() => {
+  1431→                                            const updated = services.map(s => {
+  1432→                                              if (s.id === activeService.id) {
+  1433→                                                return {
+  1434→                                                  ...s,
+  1435→                                                  portfolio: (s.portfolio || []).filter(p => p.id !== item.id)
+  1436→                                                };
+  1437→                                              }
+  1438→                                              return s;
+  1439→                                            });
+  1440→                                            handleUpdateServices(updated);
+  1441→                                            if (editingPortfolioId === item.id) setEditingPortfolioId(null);
+  1442→                                          }}
+  1443→                                          className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-xl border border-rose-500/10 transition-colors cursor-pointer"
+  1444→                                          title="Delete Project Card"
+  1445→                                        >
+  1446→                                          <Trash2 className="w-4 h-4" />
+  1447→                                        </button>
+  1448→                                      </div>
+  1449→                                    </div>
+  1450→                                  )}
+  1451→                                </motion.div>
+  1452→                                );
+  1453→                              })}
+  1454→                            </div>
+  1455→                          )}
+  1456→                        </div>
+  1457→                      </div>
+  1458→
+  1459→                    </div>
+  1460→                  ) : (
+  1461→                    <div className="p-10 text-center bg-slate-900/30 border border-slate-800 rounded-3xl">
+  1462→                      <p className="text-slate-500 text-sm font-mono">Select a service block or onboard a new category.</p>
+  1463→                    </div>
+  1464→                  )}
+  1465→
+  1466→                </div>
+  1467→              </div>
+  1468→            )}
+  1469→
+  1470→            {/* ============================================================== */}
+  1471→            {/* VIEW C: CLIENT FEEDBACK REVIEW HUB (Ratings Moderation)        */}
+  1472→            {/* ============================================================== */}
+  1473→            {activeTab === 'reviews' && (
+  1474→              <div className="space-y-6">
+  1475→                
+  1476→                {/* Testimony Header Dashboard stats */}
+  1477→                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+  1478→                  <div>
+  1479→                    <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
+  1480→                      <StarHalf className="w-4.5 h-4.5 text-amber-400" />
+  1481→                      Client Feedback Moderation Hub
+  1482→                    </h3>
+  1483→                    <p className="text-xs text-slate-400 mt-1">
+  1484→                      Directly change sequences or delete testimonies. Flag overlay automation parses country names to superimpose appropriate assets when no avatar matches.
+  1485→                    </p>
+  1486→                  </div>
+  1487→
+  1488→                  <div className="flex items-center gap-2">
+  1489→                    {editingReviewId && (
+  1490→                      <span className="text-[10px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-md uppercase tracking-wider flex items-center gap-1.5">
+  1491→                        <Pencil className="w-3 h-3" /> Editing Review
+  1492→                      </span>
+  1493→                    )}
+  1494→                    <button
+  1495→                      onClick={() => {
+  1496→                        if (editingReviewId) {
+  1497→                          handleCancelReviewForm();
+  1498→                        } else {
+  1499→                          setReviewFormOpen(!reviewFormOpen);
+  1500→                        }
+  1501→                      }}
+  1502→                      className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-indigo-600/15"
+  1503→                    >
+  1504→                      {editingReviewId ? 'Cancel Edit' : (reviewFormOpen ? 'Hide Input Sheet' : 'Onboard New Review Entry')}
+  1505→                    </button>
+  1506→                  </div>
+  1507→                </div>
+  1508→
+  1509→                {/* Inline Creation / Edit Form */}
+  1510→                {reviewFormOpen && (
+  1511→                  <motion.form 
+  1512→                    initial={{ opacity: 0, y: -10 }}
+  1513→                    animate={{ opacity: 1, y: 0 }}
+  1514→                    onSubmit={handleSubmitReview}
+  1515→                    className="bg-slate-900/60 border border-indigo-500/20 p-6 rounded-3xl space-y-4"
+  1516→                  >
+  1517→                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+  1518→                      <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest pl-1 flex items-center gap-1.5">
+  1519→                        {editingReviewId ? <><Pencil className="w-3 h-3" /> Edit Existing Testimony</> : 'New Testimony Credentials Form'}
+  1520→                      </h4>
+  1521→                      <button
+  1522→                        type="button"
+  1523→                        onClick={handleCancelReviewForm}
+  1524→                        className="text-[10px] font-mono font-bold text-slate-400 hover:text-white flex items-center gap-1"
+  1525→                      >
+  1526→                        <XCircle className="w-3 h-3" /> Cancel
+  1527→                      </button>
+  1528→                    </div>
+  1529→
+  1530→                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  1531→                      <div className="space-y-1.5">
+  1532→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Full Client Name</label>
+  1533→                        <input
+  1534→                          type="text"
+  1535→                          required
+  1536→                          value={reviewForm.name}
+  1537→                          onChange={(e) => setReviewForm({ ...reviewForm, name: e.target.value })}
+  1538→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1539→                        />
+  1540→                      </div>
+  1541→
+  1542→                      <div className="space-y-1.5">
+  1543→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Designation / Title</label>
+  1544→                        <input
+  1545→                          type="text"
+  1546→                          placeholder="e.g. CFO / Founder"
+  1547→                          value={reviewForm.designation}
+  1548→                          onChange={(e) => setReviewForm({ ...reviewForm, designation: e.target.value })}
+  1549→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1550→                        />
+  1551→                      </div>
+  1552→
+  1553→                      <div className="space-y-1.5">
+  1554→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Company / Platform</label>
+  1555→                        <input
+  1556→                          type="text"
+  1557→                          placeholder="e.g. Upwork Enterprise"
+  1558→                          value={reviewForm.company}
+  1559→                          onChange={(e) => setReviewForm({ ...reviewForm, company: e.target.value })}
+  1560→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1561→                        />
+  1562→                      </div>
+  1563→                    </div>
+  1564→
+  1565→                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  1566→                      <div className="space-y-1.5">
+  1567→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Geographic Origin / Country</label>
+  1568→                        <input
+  1569→                          type="text"
+  1570→                          placeholder="e.g. United States"
+  1571→                          value={reviewForm.country}
+  1572→                          onChange={(e) => setReviewForm({ ...reviewForm, country: e.target.value })}
+  1573→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1574→                        />
+  1575→                      </div>
+  1576→
+  1577→                      <div className="space-y-1.5">
+  1578→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Rating Stars</label>
+  1579→                        <select
+  1580→                          value={reviewForm.ratingStars}
+  1581→                          onChange={(e) => setReviewForm({ ...reviewForm, ratingStars: parseInt(e.target.value) || 5 })}
+  1582→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1583→                        >
+  1584→                          <option value="5">5 Stars (Excellent)</option>
+  1585→                          <option value="4">4 Stars (Good)</option>
+  1586→                          <option value="3">3 Stars (Average)</option>
+  1587→                        </select>
+  1588→                      </div>
+  1589→
+  1590→                      <div className="space-y-1.5">
+  1591→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Profile Photo URL (Optional)</label>
+  1592→                        <input
+  1593→                          type="text"
+  1594→                          placeholder="Leave blank to trigger automatic Flag overlay"
+  1595→                          value={reviewForm.avatarUrl}
+  1596→                          onChange={(e) => setReviewForm({ ...reviewForm, avatarUrl: e.target.value })}
+  1597→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-600"
+  1598→                        />
+  1599→                      </div>
+  1600→                    </div>
+  1601→
+  1602→                    <div className="space-y-1.5">
+  1603→                      <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Written Testimonial Testimony</label>
+  1604→                      <textarea
+  1605→                        required
+  1606→                        rows={2}
+  1607→                        placeholder="Paste or write the client's actual comment feedback..."
+  1608→                        value={reviewForm.comment}
+  1609→                        onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
+  1610→                        className="w-full bg-slate-950/60 border border-white/10 rounded-xl p-3 text-xs text-white"
+  1611→                      />
+  1612→                    </div>
+  1613→
+  1614→                    <button
+  1615→                      type="submit"
+  1616→                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+  1617→                    >
+  1618→                      {editingReviewId ? <><Save className="w-4 h-4" /> Save Changes to Testimony</> : 'Lock and Publish Testimony'}
+  1619→                    </button>
+  1620→                  </motion.form>
+  1621→                )}
+  1622→
+  1623→                {/* Testimony lists streaming with drag shuffling and flag overlay fallbacks */}
+  1624→                <div className="space-y-3.5">
+  1625→                  {ratings.map((rate, index) => {
+  1626→                    const hasAvatar = !!rate.avatarUrl;
+  1627→                    const flag = getCountryFlagEmoji(rate.country);
+  1628→                    return (
+  1629→                      <motion.div
+  1630→                        layout
+  1631→                        key={rate.id}
+  1632→                        className="p-5 bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl flex items-start justify-between gap-4 group"
+  1633→                      >
+  1634→                        <div className="flex items-start space-x-4">
+  1635→                          
+  1636→                          {/* Avatar Circle layer with automated flag asset fallback */}
+  1637→                          <div className="relative shrink-0">
+  1638→                            {hasAvatar ? (
+  1639→                              <img
+  1640→                                src={rate.avatarUrl}
+  1641→                                alt={rate.name}
+  1642→                                className="w-12 h-12 rounded-2xl object-cover border border-white/10"
+  1643→                                referrerPolicy="no-referrer"
+  1644→                              />
+  1645→                            ) : (
+  1646→                              <div className="w-12 h-12 bg-indigo-600/20 border border-indigo-500/20 rounded-2xl flex items-center justify-center text-xl select-none" title="Geographic Flag Overlay Fallback">
+  1647→                                {flag}
+  1648→                              </div>
+  1649→                            )}
+  1650→
+  1651→                            {/* Little badge showing flag even if avatar exists */}
+  1652→                            {hasAvatar && (
+  1653→                              <span className="absolute -bottom-1 -right-1 bg-slate-950 border border-white/5 rounded-md px-0.5 text-[10px]">
+  1654→                                {flag}
+  1655→                              </span>
+  1656→                            )}
+  1657→                          </div>
+  1658→
+  1659→                          <div className="space-y-1">
+  1660→                            <div className="flex items-center gap-2">
+  1661→                              <span className="font-bold text-slate-200 text-sm leading-none">{rate.name}</span>
+  1662→                              <span className="text-[10px] text-slate-500 font-mono">({rate.country})</span>
+  1663→                              <span className="text-amber-400 text-xs font-mono font-bold">{'★'.repeat(rate.ratingStars || 5)}</span>
+  1664→                            </div>
+  1665→                            <p className="text-[10px] text-slate-400">
+  1666→                              {rate.designation} at <span className="text-slate-300 font-semibold">{rate.company}</span>
+  1667→                            </p>
+  1668→                            <p className="text-xs text-slate-300 leading-relaxed font-sans max-w-2xl mt-2.5">
+  1669→                              "{rate.comment}"
+  1670→                            </p>
+  1671→                          </div>
+  1672→                        </div>
+  1673→
+  1674→                        {/* Operational controllers: sorting and deletion */}
+  1675→                        <div className="flex items-center space-x-3 shrink-0 self-center">
+  1676→                          
+  1677→                          {/* Shifter navigation */}
+  1678→                          <div className="flex space-x-1">
+  1679→                            <button
+  1680→                              disabled={index === 0}
+  1681→                              onClick={() => handleMoveReview(index, 'up')}
+  1682→                              className="p-1.5 bg-slate-950/60 hover:bg-slate-950 text-slate-400 hover:text-white rounded-lg disabled:opacity-30 transition-all cursor-pointer"
+  1683→                              title="Move Testimonial Up"
+  1684→                            >
+  1685→                              <ChevronUp className="w-3.5 h-3.5" />
+  1686→                            </button>
+  1687→                            <button
+  1688→                              disabled={index === ratings.length - 1}
+  1689→                              onClick={() => handleMoveReview(index, 'down')}
+  1690→                              className="p-1.5 bg-slate-950/60 hover:bg-slate-950 text-slate-400 hover:text-white rounded-lg disabled:opacity-30 transition-all cursor-pointer"
+  1691→                              title="Move Testimonial Down"
+  1692→                            >
+  1693→                              <ChevronDown className="w-3.5 h-3.5" />
+  1694→                            </button>
+  1695→                          </div>
+  1696→
+  1697→                          {/* Destructive Deletion */}
+  1698→                          <button
+  1699→                            onClick={() => handleEditReview(rate)}
+  1700→                            className={`p-2.5 border rounded-xl transition-all cursor-pointer ${
+  1701→                              editingReviewId === rate.id
+  1702→                                ? 'bg-indigo-600 text-white border-indigo-500/30'
+  1703→                                : 'bg-indigo-500/10 hover:bg-indigo-500/25 border-indigo-500/10 hover:border-indigo-500/30 text-indigo-400 hover:text-indigo-300'
+  1704→                            }`}
+  1705→                            title="Edit testimony"
+  1706→                          >
+  1707→                            <Pencil className="w-4 h-4" />
+  1708→                          </button>
+  1709→                          <button
+  1710→                            onClick={() => handleDeleteRating(rate.id)}
+  1711→                            className="p-2.5 bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/10 hover:border-rose-500/30 text-rose-400 hover:text-rose-300 rounded-xl transition-all cursor-pointer"
+  1712→                            title="Instantly Delete testimony"
+  1713→                          >
+  1714→                            <Trash2 className="w-4 h-4" />
+  1715→                          </button>
+  1716→                        </div>
+  1717→                      </motion.div>
+  1718→                    );
+  1719→                  })}
+  1720→                </div>
+  1721→
+  1722→              </div>
+  1723→            )}
+  1724→
+  1725→            {/* ============================================================== */}
+  1726→            {/* VIEW D: TEAM & BADGES MANAGEMENT (Employee Board)             */}
+  1727→            {/* ============================================================== */}
+  1728→            {activeTab === 'team' && (
+  1729→              <div className="space-y-6">
+  1730→                
+  1731→                {/* Onboard sheet button layout */}
+  1732→                <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+  1733→                  <div>
+  1734→                    <h3 className="text-base font-black text-white tracking-tight flex items-center gap-2">
+  1735→                      <User className="w-4.5 h-4.5 text-emerald-400" />
+  1736→                      Dynamic Corporate Employee Board
+  1737→                    </h3>
+  1738→                    <p className="text-xs text-slate-400 mt-1">
+  1739→                      Manage vetted remote specialists, append certifications, and change employee priorities instantly.
+  1740→                    </p>
+  1741→                  </div>
+  1742→
+  1743→                  <div className="flex items-center gap-2">
+  1744→                    {editingMemberId && (
+  1745→                      <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-md uppercase tracking-wider flex items-center gap-1.5">
+  1746→                        <Pencil className="w-3 h-3" /> Editing Member
+  1747→                      </span>
+  1748→                    )}
+  1749→                    <button
+  1750→                      onClick={() => {
+  1751→                        if (editingMemberId) {
+  1752→                          handleCancelTeamMemberForm();
+  1753→                        } else {
+  1754→                          setIsOnboardingEmployee(!isOnboardingEmployee);
+  1755→                        }
+  1756→                      }}
+  1757→                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+  1758→                    >
+  1759→                      {editingMemberId ? 'Cancel Edit' : (isOnboardingEmployee ? 'Close Onboard Form' : '+ Onboard New Employee')}
+  1760→                    </button>
+  1761→                  </div>
+  1762→                </div>
+  1763→
+  1764→                {/* Onboard / Edit form panel */}
+  1765→                {isOnboardingEmployee && (
+  1766→                  <motion.form 
+  1767→                    initial={{ opacity: 0, height: 0 }}
+  1768→                    animate={{ opacity: 1, height: 'auto' }}
+  1769→                    onSubmit={handleSubmitTeamMember}
+  1770→                    className="bg-slate-900/60 border border-emerald-500/20 p-6 rounded-3xl space-y-4 overflow-hidden"
+  1771→                  >
+  1772→                    <div className="flex items-center justify-between border-b border-white/5 pb-2">
+  1773→                      <h4 className="text-xs font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+  1774→                        {editingMemberId ? <><Pencil className="w-3 h-3" /> Edit Personnel Profile</> : 'Corporate Onboard Personnel Registry Form'}
+  1775→                      </h4>
+  1776→                      <button
+  1777→                        type="button"
+  1778→                        onClick={handleCancelTeamMemberForm}
+  1779→                        className="text-[10px] font-mono font-bold text-slate-400 hover:text-white flex items-center gap-1"
+  1780→                      >
+  1781→                        <XCircle className="w-3 h-3" /> Cancel
+  1782→                      </button>
+  1783→                    </div>
+  1784→
+  1785→                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+  1786→                      <div className="space-y-1.5">
+  1787→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Full Name</label>
+  1788→                        <input
+  1789→                          type="text"
+  1790→                          required
+  1791→                          placeholder="e.g., Victoria Thorne"
+  1792→                          value={employeeForm.name}
+  1793→                          onChange={(e) => setEmployeeForm({ ...employeeForm, name: e.target.value })}
+  1794→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1795→                        />
+  1796→                      </div>
+  1797→
+  1798→                      <div className="space-y-1.5">
+  1799→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Job Title</label>
+  1800→                        <input
+  1801→                          type="text"
+  1802→                          required
+  1803→                          placeholder="Lead Accountant & Tax Partner"
+  1804→                          value={employeeForm.role}
+  1805→                          onChange={(e) => setEmployeeForm({ ...employeeForm, role: e.target.value })}
+  1806→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1807→                        />
+  1808→                      </div>
+  1809→
+  1810→                      <div className="space-y-1.5">
+  1811→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Email Node Address</label>
+  1812→                        <input
+  1813→                          type="email"
+  1814→                          required
+  1815→                          placeholder="victoria@onestop.com"
+  1816→                          value={employeeForm.email}
+  1817→                          onChange={(e) => setEmployeeForm({ ...employeeForm, email: e.target.value })}
+  1818→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono"
+  1819→                        />
+  1820→                      </div>
+  1821→                    </div>
+  1822→
+  1823→                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  1824→                      <div className="space-y-1.5">
+  1825→                        <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Professional Experience Bio</label>
+  1826→                        <textarea
+  1827→                          rows={2}
+  1828→                          placeholder="Summary of qualifications and background experience..."
+  1829→                          value={employeeForm.bio}
+  1830→                          onChange={(e) => setEmployeeForm({ ...employeeForm, bio: e.target.value })}
+  1831→                          className="w-full bg-slate-950/60 border border-white/10 rounded-xl p-3 text-xs text-white"
+  1832→                        />
+  1833→                      </div>
+  1834→
+  1835→                      <div className="grid grid-cols-2 gap-3">
+  1836→                        <div className="space-y-1.5">
+  1837→                          <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Initial Certifications (CSV)</label>
+  1838→                          <input
+  1839→                            type="text"
+  1840→                            placeholder="CPA, CFA, QuickBooks"
+  1841→                            value={employeeForm.specialtiesInput}
+  1842→                            onChange={(e) => setEmployeeForm({ ...employeeForm, specialtiesInput: e.target.value })}
+  1843→                            className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white"
+  1844→                          />
+  1845→                        </div>
+  1846→                        <div className="space-y-1.5">
+  1847→                          <label className="text-[10px] font-mono text-slate-400 uppercase pl-1">Profile Photo URL</label>
+  1848→                          <input
+  1849→                            type="text"
+  1850→                            value={employeeForm.avatarUrl}
+  1851→                            onChange={(e) => setEmployeeForm({ ...employeeForm, avatarUrl: e.target.value })}
+  1852→                            className="w-full bg-slate-950/60 border border-white/10 rounded-xl px-3 py-2 text-xs text-white font-mono"
+  1853→                          />
+  1854→                        </div>
+  1855→                      </div>
+  1856→                    </div>
+  1857→
+  1858→                    <button
+  1859→                      type="submit"
+  1860→                      className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-2"
+  1861→                    >
+  1862→                      {editingMemberId ? <><Save className="w-4 h-4" /> Save Member Changes</> : 'Authenticate and Register Employee'}
+  1863→                    </button>
+  1864→                  </motion.form>
+  1865→                )}
+  1866→
+  1867→                {/* Team grid dashboard catalog */}
+  1868→                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  1869→                  {teamMembers.map((member, index) => (
+  1870→                    <div 
+  1871→                      key={member.id}
+  1872→                      className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 relative flex flex-col justify-between"
+  1873→                    >
+  1874→                      <div>
+  1875→                        {/* Header Row */}
+  1876→                        <div className="flex items-start justify-between mb-4">
+  1877→                          <div className="flex items-center space-x-4">
+  1878→                            <div className="relative">
+  1879→                              <img
+  1880→                                src={member.avatarUrl}
+  1881→                                alt={member.name}
+  1882→                                className="w-16 h-16 rounded-2xl object-cover border border-white/10"
+  1883→                                referrerPolicy="no-referrer"
+  1884→                              />
+  1885→                              <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-slate-900 ${member.isOnline ? 'bg-emerald-500' : 'bg-slate-500'}`} />
+  1886→                            </div>
+  1887→                            <div>
+  1888→                              <h4 className="text-base font-black text-white tracking-tight">{member.name}</h4>
+  1889→                              <p className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-widest">{member.role}</p>
+  1890→                              <span className="text-[9px] text-slate-500 font-mono mt-0.5 block">{member.email}</span>
+  1891→                            </div>
+  1892→                          </div>
+  1893→
+  1894→                          {/* Shifter and deletes actions */}
+  1895→                          <div className="flex items-center space-x-1.5">
+  1896→                            <button
+  1897→                              disabled={index === 0}
+  1898→                              onClick={() => handleMoveTeamMember(index, 'up')}
+  1899→                              className="p-1 bg-slate-950/80 hover:bg-slate-950 border border-white/5 text-slate-400 hover:text-white rounded disabled:opacity-30 cursor-pointer"
+  1900→                              title="Shuffle Rank Up"
+  1901→                            >
+  1902→                              <ChevronUp className="w-3.5 h-3.5" />
+  1903→                            </button>
+  1904→                            <button
+  1905→                              disabled={index === teamMembers.length - 1}
+  1906→                              onClick={() => handleMoveTeamMember(index, 'down')}
+  1907→                              className="p-1 bg-slate-950/80 hover:bg-slate-950 border border-white/5 text-slate-400 hover:text-white rounded disabled:opacity-30 cursor-pointer"
+  1908→                              title="Shuffle Rank Down"
+  1909→                            >
+  1910→                              <ChevronDown className="w-3.5 h-3.5" />
+  1911→                            </button>
+  1912→                            <button
+  1913→                              onClick={() => handleEditTeamMember(member)}
+  1914→                              className={`p-1 border rounded cursor-pointer transition-colors ${
+  1915→                                editingMemberId === member.id
+  1916→                                  ? 'bg-emerald-600 text-white border-emerald-500/30'
+  1917→                                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/10 text-emerald-400 hover:text-emerald-300'
+  1918→                              }`}
+  1919→                              title="Edit Member Profile"
+  1920→                            >
+  1921→                              <Pencil className="w-3.5 h-3.5" />
+  1922→                            </button>
+  1923→                            <button
+  1924→                              onClick={() => {
+  1925→                                handleUpdateTeamMembers(teamMembers.filter(m => m.id !== member.id));
+  1926→                                if (editingMemberId === member.id) handleCancelTeamMemberForm();
+  1927→                              }}
+  1928→                              className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/10 rounded-lg cursor-pointer"
+  1929→                              title="Decommission Employee File"
+  1930→                            >
+  1931→                              <Trash2 className="w-3.5 h-3.5" />
+  1932→                            </button>
+  1933→                          </div>
+  1934→                        </div>
+  1935→
+  1936→                        {/* Bio paragraph */}
+  1937→                        <p className="text-xs text-slate-400 leading-relaxed font-sans mt-2 min-h-[44px]">
+  1938→                          {member.bio}
+  1939→                        </p>
+  1940→                      </div>
+  1941→
+  1942→                      {/* Achievements & Badges Sub-Layer (Certifications & Credentials) */}
+  1943→                      <div className="mt-5 pt-4 border-t border-white/5 space-y-3">
+  1944→                        <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider block">
+  1945→                          Certifications & Credentials
+  1946→                        </span>
+  1947→
+  1948→                        {/* Tag list */}
+  1949→                        <div className="flex flex-wrap gap-1.5">
+  1950→                          {(!member.specialties || member.specialties.length === 0) ? (
+  1951→                            <span className="text-[9px] text-slate-600 font-mono italic">No badges listed yet.</span>
+  1952→                          ) : (
+  1953→                            member.specialties.map((spec, sIdx) => (
+  1954→                              <span 
+  1955→                                key={spec}
+  1956→                                className="text-[9px] font-bold font-mono uppercase bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded border border-indigo-500/10 flex items-center gap-1 shrink-0"
+  1957→                              >
+  1958→                                <span>{spec}</span>
+  1959→                                <button
+  1960→                                  type="button"
+  1961→                                  onClick={() => handleDeleteCertTag(member.id, sIdx)}
+  1962→                                  className="hover:text-rose-400 text-slate-500 transition-colors"
+  1963→                                  title="Remove certificate"
+  1964→                                >
+  1965→                                  ×
+  1966→                                </button>
+  1967→                              </span>
+  1968→                            ))
+  1969→                          )}
+  1970→                        </div>
+  1971→
+  1972→                        {/* Badge dynamic input field */}
+  1973→                        <div className="flex items-center space-x-2">
+  1974→                          <input
+  1975→                            type="text"
+  1976→                            placeholder="Add certification (e.g. CPA, Hubspot) and press Enter"
+  1977→                            value={tempCertValue[member.id] || ''}
+  1978→                            onChange={(e) => {
+  1979→                              const v = e.target.value;
+  1980→                              setTempCertValue(prev => ({ ...prev, [member.id]: v }));
+  1981→                            }}
+  1982→                            onKeyDown={(e) => {
+  1983→                              if (e.key === 'Enter') {
+  1984→                                e.preventDefault();
+  1985→                                handleAddCertTag(member.id, tempCertValue[member.id] || '');
+  1986→                              }
+  1987→                            }}
+  1988→                            className="w-full bg-slate-950/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-white focus:outline-none focus:border-indigo-500/60 placeholder-slate-600"
+  1989→                          />
+  1990→                          <button
+  1991→                            type="button"
+  1992→                            onClick={() => handleAddCertTag(member.id, tempCertValue[member.id] || '')}
+  1993→                            className="p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold font-sans transition-all cursor-pointer shrink-0"
+  1994→                          >
+  1995→                            Add
+  1996→                          </button>
+  1997→                        </div>
+  1998→                      </div>
+  1999→                    </div>
+  2000→                  ))}
+
+[showing lines 1-2000 of 2312; use offset=2001 with limit to continue reading]
