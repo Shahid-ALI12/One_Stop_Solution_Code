@@ -1,19 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SERVICES, RATINGS } from '../data/mockData';
 import { Star, MapPin, Tag } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Rating } from '../types';
+import { apiClient } from '../api/client';
 
 interface RatingsSectionProps {
   ratingsList?: Rating[];
+  servicesList?: Service[];
 }
 
-export default function RatingsSection({ ratingsList }: RatingsSectionProps) {
+import type { Service } from '../types';
+
+export default function RatingsSection({ ratingsList, servicesList }: RatingsSectionProps) {
   const [filterServiceId, setFilterServiceId] = useState<string>('all');
   const [showAllRatings, setShowAllRatings] = useState(false);
 
+  // Local copy of ratings so the section works standalone too (when the
+  // parent doesn't pass ratingsList). It initializes from the prop/mock
+  // and refreshes from the backend on mount.
+  const [localRatings, setLocalRatings] = useState<Rating[]>(ratingsList || RATINGS);
+
+  useEffect(() => {
+    // If parent passes ratingsList, prefer it (it's the live backend data
+    // flowing from App.tsx → useSiteData). Otherwise fetch directly.
+    if (ratingsList && ratingsList.length > 0) {
+      setLocalRatings(ratingsList);
+      return;
+    }
+    let cancelled = false;
+    apiClient
+      .getApprovedRatings()
+      .then((rows) => {
+        if (cancelled) return;
+        if (Array.isArray(rows) && rows.length > 0) {
+          setLocalRatings(rows as unknown as Rating[]);
+        }
+      })
+      .catch(() => {
+        // Keep fallback
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ratingsList]);
+
+  // Use servicesList prop if available (live from backend), else mock
+  const activeServices = servicesList && servicesList.length > 0 ? servicesList : SERVICES;
+
   // Filter ratings that are approved
-  const baseRatings = (ratingsList || RATINGS) as Rating[];
+  const baseRatings = localRatings;
   const approvedRatings = baseRatings.filter(r => r.isApproved !== false);
 
   // Filter ratings by selected service ID
@@ -26,11 +62,11 @@ export default function RatingsSection({ ratingsList }: RatingsSectionProps) {
   // Read services dynamically for dropdown filter
   const filterOptions = [
     { id: 'all', name: 'Show All Services' },
-    ...SERVICES.map(s => ({ id: s.id, name: s.name }))
+    ...activeServices.map(s => ({ id: s.id, name: s.name }))
   ];
 
   const getServiceName = (serviceId: string) => {
-    return SERVICES.find(s => s.id === serviceId)?.name || 'General';
+    return activeServices.find(s => s.id === serviceId)?.name || 'General';
   };
 
   return (

@@ -419,4 +419,181 @@ export const apiClient = {
   async deleteTeamMember(id: string): Promise<void> {
     await api.delete(`/team/${id}`);
   },
+
+  // ---- Reorder (admin) ----
+  async reorderServices(items: { id: number; sort_order: number }[]): Promise<void> {
+    await api.put('/services/reorder', { items });
+  },
+  async reorderPortfolio(items: { id: number; sort_order: number }[]): Promise<void> {
+    await api.put('/services/portfolio/reorder', { items });
+  },
+  async reorderRatings(items: { id: number; sort_order: number }[]): Promise<void> {
+    await api.put('/ratings/reorder', { items });
+  },
+  async reorderTeam(items: { id: number; sort_order: number }[]): Promise<void> {
+    await api.put('/team/reorder', { items });
+  },
+  async reorderFaqs(items: { id: number; sort_order: number }[]): Promise<void> {
+    await api.put('/faqs/reorder', { items });
+  },
+
+  // ---- Services (admin CRUD) ----
+  async createService(payload: any): Promise<ApiService> {
+    const { data } = await api.post('/services/', payload);
+    return mapService(data);
+  },
+  async updateService(id: string | number, payload: any): Promise<ApiService> {
+    // The API uses numeric ids for services, but the frontend uses slugs as id.
+    // We resolve slug → numeric id via the services list endpoint before PATCH.
+    const numericId = await resolveServiceId(id);
+    const { data } = await api.put(`/services/${numericId}`, payload);
+    return mapService(data);
+  },
+  async deleteService(id: string | number): Promise<void> {
+    const numericId = await resolveServiceId(id);
+    await api.delete(`/services/${numericId}`);
+  },
+
+  // ---- FAQ ----
+  async getFaqs(activeOnly: boolean = true): Promise<any[]> {
+    const { data } = await api.get('/faqs/', { params: { active_only: activeOnly } });
+    return data;
+  },
+  async createFaq(payload: { question: string; answer: string }): Promise<any> {
+    const { data } = await api.post('/faqs/', payload);
+    return data;
+  },
+  async updateFaq(id: number, payload: any): Promise<any> {
+    const { data } = await api.put(`/faqs/${id}`, payload);
+    return data;
+  },
+  async deleteFaq(id: number): Promise<void> {
+    await api.delete(`/faqs/${id}`);
+  },
+
+  // ---- Contact platforms ----
+  async getContactPlatforms(activeOnly: boolean = true): Promise<any[]> {
+    const { data } = await api.get('/contact-platforms/', { params: { active_only: activeOnly } });
+    return data;
+  },
+  async createContactPlatform(payload: any): Promise<any> {
+    const { data } = await api.post('/contact-platforms/', payload);
+    return data;
+  },
+  async updateContactPlatform(id: number, payload: any): Promise<any> {
+    const { data } = await api.put(`/contact-platforms/${id}`, payload);
+    return data;
+  },
+  async deleteContactPlatform(id: number): Promise<void> {
+    await api.delete(`/contact-platforms/${id}`);
+  },
+
+  // ---- Certifications ----
+  async getCertifications(teamMemberId?: number): Promise<any[]> {
+    const params: any = {};
+    if (teamMemberId !== undefined) params.team_member_id = teamMemberId;
+    const { data } = await api.get('/certifications/', { params });
+    return data;
+  },
+  async createCertification(payload: any): Promise<any> {
+    const { data } = await api.post('/certifications/', payload);
+    return data;
+  },
+  async deleteCertification(id: number): Promise<void> {
+    await api.delete(`/certifications/${id}`);
+  },
+
+  // ---- Dashboard analytics ----
+  async getDashboard(): Promise<any> {
+    const { data } = await api.get('/stats/dashboard');
+    return data;
+  },
+
+  // ---- Visits (admin) ----
+  async getVisits(): Promise<any> {
+    const { data } = await api.get('/visits/');
+    return data;
+  },
+  async getVisitsByCountry(): Promise<any> {
+    const { data } = await api.get('/visits/by-country');
+    return data;
+  },
+
+  // ---- Uploads (admin) ----
+  async uploadPortfolioImage(file: File): Promise<{ url: string; filename: string; size: number; content_type: string }> {
+    const fd = new FormData();
+    fd.append('file', file);
+    const { data } = await api.post('/uploads/portfolio', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  async uploadResourceFile(file: File): Promise<{ url: string; filename: string; size: number; content_type: string }> {
+    const fd = new FormData();
+    fd.append('file', file);
+    const { data } = await api.post('/uploads/resource', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+
+  // ---- Admin users (admin) ----
+  async getAdminUsers(): Promise<any[]> {
+    const { data } = await api.get('/admin-users/');
+    return data;
+  },
+  async getMeAdmin(): Promise<any> {
+    const { data } = await api.get('/admin-users/me');
+    return data;
+  },
+  async createAdminUser(payload: { username: string; password: string; display_name?: string; is_active?: boolean }): Promise<any> {
+    const { data } = await api.post('/admin-users/', payload);
+    return data;
+  },
+  async updateAdminUser(id: number, payload: any): Promise<any> {
+    const { data } = await api.put(`/admin-users/${id}`, payload);
+    return data;
+  },
+  async deleteAdminUser(id: number): Promise<void> {
+    await api.delete(`/admin-users/${id}`);
+  },
+
+  // ---- Team member create (admin) ----
+  async createTeamMember(payload: any): Promise<ApiTeamMember> {
+    const { data } = await api.post('/team/', payload);
+    return mapTeamMember(data);
+  },
+
+  // ---- Resources (admin CRUD) ----
+  async createResource(payload: any): Promise<ApiResource> {
+    const { data } = await api.post('/resources/', payload);
+    return mapResource(data);
+  },
+  async updateResource(id: string, payload: any): Promise<ApiResource> {
+    const { data } = await api.put(`/resources/${id}`, payload);
+    return mapResource(data);
+  },
+  async deleteResource(id: string): Promise<void> {
+    await api.delete(`/resources/${id}`);
+  },
 };
+
+/**
+ * Resolve a slug-based service id (as used by the frontend) into the
+ * numeric id required by the backend PUT/DELETE routes. We fetch the
+ * services list once and cache it in-module to avoid repeating calls.
+ */
+let _serviceIdCache: Record<string, number> | null = null;
+async function resolveServiceId(slugOrId: string | number): Promise<number> {
+  if (typeof slugOrId === 'number') return slugOrId;
+  if (_serviceIdCache && slugOrId in _serviceIdCache) return _serviceIdCache[slugOrId];
+  // Refresh cache
+  const { data } = await api.get('/services/');
+  _serviceIdCache = {};
+  for (const s of data) {
+    _serviceIdCache[String(s.id)] = s.id;
+    if (s.slug) _serviceIdCache[s.slug] = s.id;
+  }
+  if (slugOrId in _serviceIdCache!) return _serviceIdCache[slugOrId];
+  throw new Error(`Service not found for id/slug: ${slugOrId}`);
+}

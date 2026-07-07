@@ -14,7 +14,7 @@ import Footer from './components/Footer';
 // Admin Components & Data Hooks
 import AdminDashboard from './components/AdminDashboard';
 import AdminLoginModal from './components/AdminLoginModal';
-import { useAdminAuth } from './hooks/useApi';
+import { useAdminAuth, useSiteData } from './hooks/useApi';
 import { SERVICES, RATINGS, INITIAL_TEAM_MEMBERS, INITIAL_ENQUIRIES, INITIAL_CONSULTATIONS, INITIAL_SITE_STATS, INITIAL_RATINGS } from './data/mockData';
 import { Service, Enquiry, Consultation, Rating, PortfolioItem, TeamMember } from './types';
 import TeamSection from './components/TeamSection';
@@ -69,6 +69,15 @@ export default function App() {
   const { isAuthenticated: isAdminAuthenticated, login: doLogin, logout: doLogout, checking } = useAdminAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
+  // ── LIVE BACKEND DATA ────────────────────────────────────────────────
+  // useSiteData() fires on mount and fetches services, ratings, resources,
+  // team members, stats, faqs, and contact platforms in parallel. The
+  // localStorage-cached state below remains the source of truth for the
+  // initial render (so the site is never blank during the first paint or
+  // when the backend is unreachable), and gets overwritten as soon as the
+  // backend returns real data.
+  const site = useSiteData();
+
   // Centralized Lifted Operational Counters State
   const [stats, setStats] = useState(() => loadPersisted('stats', {
     clients: INITIAL_SITE_STATS.clients,
@@ -90,6 +99,25 @@ export default function App() {
 
   // Centralized Consultations State (Seeded with 2 initial bookings)
   const [consultations, setConsultations] = useState<Consultation[]>(() => loadPersisted('consultations', INITIAL_CONSULTATIONS));
+
+  // ── SYNC BACKEND → LOCAL STATE ───────────────────────────────────────
+  // Each block runs only when the backend actually returned non-empty
+  // data for that key, so we never wipe the seeded fallback with an empty
+  // array (which would happen on first load while the request is in flight).
+  useEffect(() => {
+    if (site.services && site.services.length > 0) setServices(site.services as unknown as Service[]);
+  }, [site.services]);
+  useEffect(() => {
+    if (site.ratings && site.ratings.length > 0) setRatings(site.ratings as unknown as Rating[]);
+  }, [site.ratings]);
+  useEffect(() => {
+    if (site.teamMembers && site.teamMembers.length > 0) setTeamMembers(site.teamMembers as unknown as TeamMember[]);
+  }, [site.teamMembers]);
+  useEffect(() => {
+    if (site.stats && (site.stats.clients > 0 || site.stats.orders > 0 || site.stats.countries > 0)) {
+      setStats(site.stats as any);
+    }
+  }, [site.stats]);
 
   // PERSISTENCE — mirror every state mutation back to localStorage so admin
   // edits (and the seeded mock data) survive page refresh, branch re-sync,
@@ -310,7 +338,7 @@ export default function App() {
         />
 
         {/* 5. Dynamic Filterable Client Reviews */}
-        <RatingsSection ratingsList={ratings} />
+        <RatingsSection ratingsList={ratings} servicesList={services} />
 
         {/* 6. Downloadable Resources Hub & search queries */}
         <ResourceHubSection />

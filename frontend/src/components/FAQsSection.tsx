@@ -1,10 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FAQS } from '../data/mockData';
 import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { apiClient } from '../api/client';
+
+interface FaqItem {
+  id: string | number;
+  question: string;
+  answer: string;
+  is_active?: boolean;
+}
 
 export default function FAQsSection() {
+  // Start with mock data so the section is never blank during the initial
+  // paint or when the backend is unreachable. Backend FAQs (when fetched)
+  // take precedence and overwrite this list.
+  const [faqs, setFaqs] = useState<FaqItem[]>(FAQS as FaqItem[]);
   const [openFaqId, setOpenFaqId] = useState<string | null>('faq-1');
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .getFaqs(true)
+      .then((rows) => {
+        if (cancelled) return;
+        if (Array.isArray(rows) && rows.length > 0) {
+          setFaqs(rows as FaqItem[]);
+          // Default the open item to the first FAQ
+          setOpenFaqId(String(rows[0].id));
+        }
+      })
+      .catch(() => {
+        // Network or auth error — keep mock data fallback.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggleFaq = (id: string) => {
     setOpenFaqId(prev => (prev === id ? null : id));
@@ -43,7 +75,7 @@ export default function FAQsSection() {
 
         {/* FAQs Accordion Block */}
         <div className="space-y-4">
-          {FAQS.map((item) => {
+          {faqs.map((item) => {
             const isOpen = openFaqId === item.id;
             return (
               <div

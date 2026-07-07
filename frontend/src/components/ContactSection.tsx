@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { SERVICES } from '../data/mockData';
-import { 
-  Mail, 
-  Phone, 
-  ExternalLink, 
-  Clock, 
-  Calendar, 
-  CheckCircle, 
-  MessageSquare, 
-  AlertCircle 
+import { apiClient } from '../api/client';
+import {
+  Mail,
+  Phone,
+  ExternalLink,
+  Clock,
+  Calendar,
+  CheckCircle,
+  MessageSquare,
+  AlertCircle
 } from 'lucide-react';
 
 interface ContactSectionProps {
@@ -117,9 +118,9 @@ export default function ContactSection({
     }
   }, [preSelectedService, preSelectedPortfolio]);
 
-  const handleQuerySubmit = (e: React.FormEvent) => {
+  const handleQuerySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (contactMethod === 'email') {
       const payload = {
         name: emailName,
@@ -132,19 +133,39 @@ export default function ContactSection({
       setSubmittedQueryData(payload);
       setIsQuerySubmitted(true);
 
-      if (onAddEnquiry) {
-        onAddEnquiry({
-          id: `q-${Date.now()}`,
-          name: emailName,
-          contactMethod: 'email',
-          contactInfo: emailAddr,
-          subject: emailSubject,
-          message: emailMsg,
-          selectedService: preSelectedService || 'Custom Scope',
-          timestamp: new Date().toISOString(),
-          isAnswered: false,
-          timezone: emailCountry || 'Global Market'
-        });
+      // Build the backend payload. The /enquiries/ endpoint expects
+      // contact_method + contact_info (not the legacy email/phone fields).
+      const backendPayload: any = {
+        name: emailName,
+        contact_method: 'email',
+        contact_info: emailAddr,
+        subject: emailSubject,
+        message: emailMsg,
+        selected_service: preSelectedService || 'Custom Scope',
+        timezone: emailCountry || 'Global Market',
+      };
+
+      try {
+        const created = await apiClient.createEnquiry(backendPayload);
+        if (onAddEnquiry) onAddEnquiry(created);
+      } catch (err: any) {
+        // Fall back to local-only state so the user still sees their
+        // submission on the public site (admin won't see it, but the
+        // UX doesn't break).
+        if (onAddEnquiry) {
+          onAddEnquiry({
+            id: `q-${Date.now()}`,
+            name: emailName,
+            contactMethod: 'email',
+            contactInfo: emailAddr,
+            subject: emailSubject,
+            message: emailMsg,
+            selectedService: preSelectedService || 'Custom Scope',
+            timestamp: new Date().toISOString(),
+            isAnswered: false,
+            timezone: emailCountry || 'Global Market'
+          });
+        }
       }
 
       // Clear fields
@@ -159,13 +180,31 @@ export default function ContactSection({
       const text = encodeURIComponent(`Hello OneStop! My name is ${waName} from ${waCountry}. I am looking to inquire about your remote services. ${waMsg}`);
       const waNumber = '923001234567'; // Demo WhatsApp Business number
       const url = `https://wa.me/${waNumber}?text=${text}`;
-      
+
       setWaRedirectUrl(url);
       setIsWaPrepared(true);
+
+      // Optionally record the WhatsApp enquiry on the backend too, so
+      // the admin sees it in the dashboard. We swallow errors because
+      // the WhatsApp redirect URL has already been prepared client-side
+      // and the user experience should not depend on this call.
+      try {
+        await apiClient.createEnquiry({
+          name: waName || 'WhatsApp Visitor',
+          contact_method: 'whatsapp',
+          contact_info: waName || '',
+          subject: 'WhatsApp inquiry',
+          message: waMsg,
+          selected_service: 'General',
+          timezone: waCountry || 'Global Market',
+        } as any);
+      } catch {
+        // ignore
+      }
     }
   };
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDateTime) {
       setBookingError('Please pick a preferred date and time for the meeting.');
@@ -190,21 +229,46 @@ export default function ContactSection({
       pktTime: pktTimeStr
     });
 
-    if (onAddConsultation) {
-      onAddConsultation({
-        id: `c-${Date.now()}`,
-        name: bookName,
-        email: bookEmail,
-        country: bookCountry || 'Global Partner',
-        selectedDateTime: `${localFormatted} (${visitorTimeZone})`,
-        timezone: visitorTimeZone,
-        pktTime: pktTimeStr,
-        isAnswered: false,
-        timestamp: new Date().toISOString()
-      });
-    }
+    // Build the backend payload. The backend's tz_service validates the
+    // slot (past / too-soon / too-far / double-booking) and may reject
+    // with HTTP 400 and a friendly message in `detail`.
+    const backendPayload: any = {
+      name: bookName,
+      email: bookEmail,
+      country: bookCountry || 'Global Partner',
+      selected_date_time: selectedDateTime, // raw <datetime-local> value
+      timezone: visitorTimeZone,
+      pkt_time: pktTimeStr,
+    };
 
-    setIsBooked(true);
+    try {
+      const created = await apiClient.createConsultation(backendPayload);
+      if (onAddConsultation) onAddConsultation(created);
+      setIsBooked(true);
+    } catch (err: any) {
+      // 400 = backend slot validation rejected the booking
+      const detail = err?.response?.data?.detail;
+      if (detail) {
+        setBookingError(typeof detail === 'string' ? detail : 'Booking rejected. Please pick another slot.');
+        return;
+      }
+      // Network error / backend unreachable — fall back to local-only
+      // record so the user still gets a confirmation on the public site.
+      if (onAddConsultation) {
+        onAddConsultation({
+          id: `c-${Date.now()}`,
+          name: bookName,
+          email: bookEmail,
+          country: bookCountry || 'Global Partner',
+          selectedDateTime: `${localFormatted} (${visitorTimeZone})`,
+          timezone: visitorTimeZone,
+          pktTime: pktTimeStr,
+          isAnswered: false,
+          timestamp: new Date().toISOString()
+        });
+      }
+      setIsBooked(true);
+    }
   };
 
   const resetQueryForm = () => {
