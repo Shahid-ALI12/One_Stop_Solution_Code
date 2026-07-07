@@ -147,6 +147,17 @@ export function useAdminAuth() {
       .finally(() => setChecking(false));
   }, []);
 
+  // Listen for auth-expired events dispatched by the API client's 401
+  // interceptor. Without this, the dashboard would stay mounted showing
+  // broken-data UI until the user manually refreshes.
+  useEffect(() => {
+    const onAuthExpired = () => {
+      setIsAuthenticated(false);
+    };
+    window.addEventListener('oss:auth-expired', onAuthExpired);
+    return () => window.removeEventListener('oss:auth-expired', onAuthExpired);
+  }, []);
+
   const login = useCallback(async (username: string, password: string) => {
     // 1) Try the real backend first — preserves production behavior.
     try {
@@ -172,6 +183,28 @@ export function useAdminAuth() {
       }
 
       // 3) Backend is unreachable → grant a demo session.
+      //
+      // SECURITY: demo mode is gated behind VITE_ENABLE_DEMO_LOGIN=true OR
+      // localhost dev origins. In production deployments (where the backend
+      // is reachable), this branch never executes anyway because real auth
+      // succeeded above. The gate is a defence-in-depth: if an attacker
+      // somehow blocks the backend (DNS poisoning, etc.) on a prod domain,
+      // they should NOT be able to log in with arbitrary creds.
+      const isDevOrigin =
+        typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' ||
+          window.location.hostname === '127.0.0.1' ||
+          window.location.hostname === 'preview');
+      const demoAllowed =
+        isDevOrigin ||
+        (import.meta as any).env?.VITE_ENABLE_DEMO_LOGIN === 'true';
+      if (!demoAllowed) {
+        throw new Error(
+          'Backend is unreachable and demo login is disabled. ' +
+            'Set VITE_ENABLE_DEMO_LOGIN=true or contact the site administrator.',
+        );
+      }
+
       const demoToken = DEMO_TOKEN_PREFIX + btoa(`${username}:${Date.now()}`);
       setToken(demoToken);
       setIsAuthenticated(true);
@@ -195,7 +228,7 @@ export function useAdminAuth() {
  */
 export function useDashboard() {
   const [dashboard, setDashboard] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -224,7 +257,7 @@ export function useDashboard() {
  */
 export function useAdminUsers() {
   const [admins, setAdmins] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -276,20 +309,17 @@ export function useAdminData() {
 
   const refreshAll = useCallback(async () => {
     setLoading(true);
-    try {
-      const [e, c, r] = await Promise.all([
-        apiClient.getEnquiries(),
-        apiClient.getConsultations(),
-        apiClient.getAllRatings(),
-      ]);
-      setEnquiries(e);
-      setConsultations(c);
-      setAllRatings(r);
-    } catch (err) {
-      // ignore — auth issues handled by interceptor
-    } finally {
-      setLoading(false);
-    }
+    // Use allSettled so a single 401/timeout on one endpoint doesn't wipe
+    // the other two. Each fulfilled promise sets its own slice of state.
+    const results = await Promise.allSettled([
+      apiClient.getEnquiries(),
+      apiClient.getConsultations(),
+      apiClient.getAllRatings(),
+    ]);
+    if (results[0].status === 'fulfilled') setEnquiries(results[0].value);
+    if (results[1].status === 'fulfilled') setConsultations(results[1].value);
+    if (results[2].status === 'fulfilled') setAllRatings(results[2].value);
+    setLoading(false);
   }, []);
 
   useEffect(() => {

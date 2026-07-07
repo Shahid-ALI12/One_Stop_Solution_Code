@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import { Service, PortfolioItem, Enquiry, Consultation, Rating, TeamMember } from '../types';
 import { useAdminData, useDashboard, useAdminUsers } from '../hooks/useApi';
+import { apiClient } from '../api/client';
 
 interface AdminDashboardProps {
   services?: Service[];
@@ -411,6 +412,15 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     // Update global state
     const updatedServices = services.map(s => s.id === serviceId ? { ...s, portfolio: portList } : s);
     handleUpdateServices(updatedServices);
+
+    // Persist reordering to backend (best-effort). Only syncs items whose
+    // ids are numeric (i.e. were created on the backend, not locally).
+    const reorderItems = portList
+      .map((p, idx) => ({ id: Number(p.id), sort_order: idx }))
+      .filter(it => !Number.isNaN(it.id));
+    if (reorderItems.length > 0) {
+      apiClient.reorderPortfolio(reorderItems).catch(() => { /* keep optimistic */ });
+    }
   };
 
   // Testimonials/Reviews reordering
@@ -425,6 +435,14 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     list[targetIndex] = temp;
 
     handleUpdateRatings(list);
+
+    // Persist reordering to backend (best-effort).
+    const reorderItems = list
+      .map((r, idx) => ({ id: Number(r.id), sort_order: idx }))
+      .filter(it => !Number.isNaN(it.id));
+    if (reorderItems.length > 0) {
+      apiClient.reorderRatings(reorderItems).catch(() => { /* keep optimistic */ });
+    }
   };
 
   // Team Members reordering
@@ -439,6 +457,14 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     list[targetIndex] = temp;
 
     handleUpdateTeamMembers(list);
+
+    // Persist reordering to backend (best-effort).
+    const reorderItems = list
+      .map((m, idx) => ({ id: Number(m.id), sort_order: idx }))
+      .filter(it => !Number.isNaN(it.id));
+    if (reorderItems.length > 0) {
+      apiClient.reorderTeam(reorderItems).catch(() => { /* keep optimistic */ });
+    }
   };
 
   // Add certification dynamic tag handler
@@ -476,8 +502,9 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     e.preventDefault();
     if (!newServiceName.trim() || !newServiceDesc.trim()) return;
 
+    const slug = newServiceName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `srv-${Date.now()}`;
     const newBlock: Service = {
-      id: `srv-${Date.now()}`,
+      id: slug,
       name: newServiceName,
       accentColor: '#4f46e5',
       textColor: '#ffffff',
@@ -503,6 +530,23 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     setNewServiceName('');
     setNewServiceDesc('');
     setIsCreatingNewService(false);
+
+    // Persist to backend (best-effort — UI is already updated optimistically).
+    // The backend creates its own numeric id; the frontend keeps using the
+    // slug as its id. The slug→numeric-id mapping is resolved on demand by
+    // apiClient.updateService/deleteService via resolveServiceId().
+    apiClient.createService({
+      slug,
+      name: newServiceName,
+      accent_color: '#4f46e5',
+      text_color: '#ffffff',
+      tailwind_color: 'indigo',
+      short_desc: newServiceDesc.slice(0, 100) + '...',
+      overall_description: newServiceDesc,
+      icon_name: 'Sparkles',
+    }).catch(() => {
+      /* keep optimistic version if backend is unreachable */
+    });
   };
 
   // Handle inline portfolio item submission for selected service
@@ -536,6 +580,20 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     setPortDesc('');
     setPortSkillsInput('');
     setIsAddingPortfolio(false);
+
+    // Persist to backend (best-effort). The backend's numeric id is mapped
+    // back to the frontend's string id via slug resolution on future edits.
+    apiClient.createPortfolioItem(selectedServiceId, {
+      title: portTitle,
+      description: portDesc,
+      skills: portSkillsInput.split(',').map(s => s.trim()).filter(Boolean),
+      media_type: portMediaType,
+      media_url: portMediaUrl,
+      media_title: portMediaType === 'pdf' ? 'Report_Deliverable.pdf' : 'Interactive Project Portfolio',
+      thumbnail_url: portMediaUrl,
+    }).catch(() => {
+      /* keep optimistic version if backend is unreachable */
+    });
   };
 
   // Handle review deletion
@@ -545,6 +603,14 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     if (editingReviewId === id) {
       setEditingReviewId(null);
       setReviewFormOpen(false);
+    }
+    // Persist to backend (best-effort). The id may be numeric (backend) or
+    // string (local optimistic) — coerce to number for the API call.
+    const numericId = Number(id);
+    if (!Number.isNaN(numericId)) {
+      apiClient.deleteRating(String(numericId)).catch(() => {
+        /* revert handled by user triggering refresh */
+      });
     }
   };
 
@@ -582,6 +648,20 @@ export default function AdminDashboard(props: AdminDashboardProps) {
       } : r);
       handleUpdateRatings(updated);
       setEditingReviewId(null);
+
+      // Persist to backend (best-effort).
+      const numericId = Number(editingReviewId);
+      if (!Number.isNaN(numericId)) {
+        apiClient.updateRating(String(numericId), {
+          name: reviewForm.name,
+          designation: reviewForm.designation || 'Client Leader',
+          company: reviewForm.company || 'Direct Agency',
+          comment: reviewForm.comment,
+          country: reviewForm.country,
+          ratingStars: reviewForm.ratingStars,
+          avatarUrl: reviewForm.avatarUrl,
+        }).catch(() => { /* keep optimistic version */ });
+      }
     } else {
       // CREATE new
       const created: Rating = {
@@ -597,6 +677,20 @@ export default function AdminDashboard(props: AdminDashboardProps) {
         avatarUrl: reviewForm.avatarUrl
       };
       handleUpdateRatings([created, ...ratings]);
+
+      // Persist to backend (best-effort). The new rating starts as approved
+      // since an admin created it directly.
+      apiClient.createRating({
+        serviceId: 'bookkeeping',
+        name: reviewForm.name,
+        designation: reviewForm.designation || 'Client Leader',
+        company: reviewForm.company || 'Direct Agency',
+        comment: reviewForm.comment,
+        country: reviewForm.country,
+        ratingStars: reviewForm.ratingStars,
+        avatarUrl: reviewForm.avatarUrl,
+        isApproved: true,
+      } as any).catch(() => { /* keep optimistic version */ });
     }
 
     setReviewForm({
@@ -636,6 +730,10 @@ export default function AdminDashboard(props: AdminDashboardProps) {
       setSelectedServiceId(updated[0]?.id || 'new');
       setIsCreatingNewService(false);
     }
+    // Persist to backend (best-effort). resolveServiceId handles slug→numeric.
+    apiClient.deleteService(serviceId).catch(() => {
+      /* keep optimistic version if backend is unreachable */
+    });
   };
 
   // NEW: Begin editing a portfolio item — pre-fills inline edit fields
@@ -672,6 +770,21 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     });
     handleUpdateServices(updated);
     setEditingPortfolioId(null);
+
+    // Persist to backend (best-effort). Portfolio ids from the backend are
+    // numeric; optimistic local ids start with "port-". Skip the API call
+    // for purely-local items.
+    const numericId = Number(portfolioId);
+    if (!Number.isNaN(numericId)) {
+      apiClient.updatePortfolioItem(numericId, {
+        title: editPortTitle,
+        description: editPortDesc,
+        skills: editPortSkillsInput.split(',').map(x => x.trim()).filter(Boolean),
+        media_type: editPortMediaType,
+        media_url: editPortMediaUrl,
+        thumbnail_url: editPortMediaUrl,
+      }).catch(() => { /* keep optimistic version */ });
+    }
   };
 
   // NEW: Cancel portfolio edit
@@ -699,6 +812,10 @@ export default function AdminDashboard(props: AdminDashboardProps) {
     e.preventDefault();
     if (!employeeForm.name.trim() || !employeeForm.role.trim()) return;
 
+    const skillsArray = employeeForm.specialtiesInput.trim()
+      ? employeeForm.specialtiesInput.split(',').map(s => s.trim()).filter(Boolean)
+      : [];
+
     if (editingMemberId) {
       // UPDATE existing member — preserve specialties if input empty
       const updated = teamMembers.map(m => m.id === editingMemberId ? {
@@ -708,13 +825,26 @@ export default function AdminDashboard(props: AdminDashboardProps) {
         bio: employeeForm.bio || 'Vetted consultant delivering secure corporate solutions.',
         avatarUrl: employeeForm.avatarUrl,
         email: employeeForm.email || 'consult@onestop.com',
-        specialties: employeeForm.specialtiesInput.trim()
-          ? employeeForm.specialtiesInput.split(',').map(s => s.trim()).filter(Boolean)
-          : m.specialties,
+        specialties: skillsArray.length ? skillsArray : m.specialties,
         isOnline: employeeForm.isOnline
       } : m);
       handleUpdateTeamMembers(updated);
       setEditingMemberId(null);
+
+      // Persist to backend (best-effort). Team member ids from the backend
+      // are numeric; optimistic local ids start with "member-".
+      const numericId = Number(editingMemberId);
+      if (!Number.isNaN(numericId)) {
+        apiClient.updateTeamMember(String(numericId), {
+          name: employeeForm.name,
+          role: employeeForm.role,
+          bio: employeeForm.bio || 'Vetted consultant delivering secure corporate solutions.',
+          avatarUrl: employeeForm.avatarUrl,
+          email: employeeForm.email || 'consult@onestop.com',
+          specialties: skillsArray,
+          isOnline: employeeForm.isOnline,
+        }).catch(() => { /* keep optimistic version */ });
+      }
     } else {
       // CREATE new
       const onboarded: TeamMember = {
@@ -724,10 +854,21 @@ export default function AdminDashboard(props: AdminDashboardProps) {
         bio: employeeForm.bio || 'Vetted consultant delivering secure corporate solutions.',
         avatarUrl: employeeForm.avatarUrl || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
         email: employeeForm.email || 'consult@onestop.com',
-        specialties: employeeForm.specialtiesInput.split(',').map(s => s.trim()).filter(Boolean),
+        specialties: skillsArray,
         isOnline: employeeForm.isOnline
       };
       handleUpdateTeamMembers([...teamMembers, onboarded]);
+
+      // Persist to backend (best-effort).
+      apiClient.createTeamMember({
+        name: employeeForm.name,
+        role: employeeForm.role,
+        bio: employeeForm.bio || 'Vetted consultant delivering secure corporate solutions.',
+        avatar_url: employeeForm.avatarUrl || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=300',
+        email: employeeForm.email || 'consult@onestop.com',
+        specialties: skillsArray,
+        is_online: employeeForm.isOnline,
+      }).catch(() => { /* keep optimistic version */ });
     }
 
     setEmployeeForm({
@@ -1514,6 +1655,11 @@ export default function AdminDashboard(props: AdminDashboardProps) {
                                             });
                                             handleUpdateServices(updated);
                                             if (editingPortfolioId === item.id) setEditingPortfolioId(null);
+                                            // Persist to backend (best-effort).
+                                            const numericId = Number(item.id);
+                                            if (!Number.isNaN(numericId)) {
+                                              apiClient.deletePortfolioItem(numericId).catch(() => { /* keep optimistic */ });
+                                            }
                                           }}
                                           className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 rounded-xl border border-rose-500/10 transition-colors cursor-pointer"
                                           title="Delete Project Card"
@@ -1999,6 +2145,12 @@ export default function AdminDashboard(props: AdminDashboardProps) {
                               onClick={() => {
                                 handleUpdateTeamMembers(teamMembers.filter(m => m.id !== member.id));
                                 if (editingMemberId === member.id) handleCancelTeamMemberForm();
+                                // Persist to backend (best-effort). Coerce
+                                // string id → number; skip if purely local.
+                                const numericId = Number(member.id);
+                                if (!Number.isNaN(numericId)) {
+                                  apiClient.deleteTeamMember(String(numericId)).catch(() => { /* keep optimistic */ });
+                                }
                               }}
                               className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/10 rounded-lg cursor-pointer"
                               title="Decommission Employee File"

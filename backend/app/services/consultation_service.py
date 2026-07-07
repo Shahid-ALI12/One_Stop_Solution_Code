@@ -36,21 +36,26 @@ def create_consultation(db: Session, data: ConsultationCreate) -> dict:
       - rejects double-booking (same email + same slot within 5 min)
       - computes pkt_time server-side (ignoring any client-supplied pkt_time)
     """
+    # Normalize email to lowercase for both storage and lookup so the
+    # double-booking check is case-insensitive. (Without this, a user who
+    # booked with "Alice@Example.com" first and "alice@example.com" second
+    # would bypass the duplicate-slot guard.)
+    normalized_email = data.email.strip().lower() if data.email else ""
     existing = (
         db.query(Consultation)
-        .filter(Consultation.email == data.email.strip().lower())
+        .filter(Consultation.email == normalized_email)
         .all()
-        if data.email else []
+        if normalized_email else []
     )
     _aware_dt, pkt_time_str, _warnings = tz_service.validate_slot(
         selected_date_time=data.selected_date_time,
         timezone_name=data.timezone or None,
-        email=data.email,
+        email=normalized_email,
         existing=existing,
     )
     c = Consultation(
         name=data.name,
-        email=data.email,
+        email=normalized_email,
         country=data.country,
         selected_date_time=data.selected_date_time,
         timezone=data.timezone,

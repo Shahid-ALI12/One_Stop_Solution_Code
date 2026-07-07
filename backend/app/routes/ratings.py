@@ -27,11 +27,14 @@ def reorder_ratings(body: ReorderRequest, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=list[RatingResponse])
 def list_ratings(
-    approved: bool | None = Query(default=True, description=(
-        "true (default, public): only approved ratings. "
-        "false (admin only): only unapproved. "
-        "Omit / None (admin only): all ratings."
-    )),
+    approved: str | None = Query(
+        default="true",
+        description=(
+            '"true" (default, public): only approved ratings. '
+            '"false" (admin only): only unapproved. '
+            '"all" (admin only): every rating regardless of approval.'
+        ),
+    ),
     db: Session = Depends(get_db),
     current_admin: AdminUser | None = Depends(get_optional_admin),
 ):
@@ -43,26 +46,27 @@ def list_ratings(
 
     Admin access (valid bearer token required):
       - GET /ratings/?approved=false → only unapproved (moderation queue)
-      - GET /ratings/?approved=all   → not supported; omit `approved` to get None
-                                       (None branch returns all ratings).
+      - GET /ratings/?approved=all   → every rating (approved + unapproved)
 
-    When `approved` is False or None and no valid admin token is supplied,
-    we return 401 (instead of silently exposing unapproved ratings).
+    Any value other than "true" requires admin authentication.
     """
-    if approved is True:
+    # Normalize to lower-case string for safe comparison.
+    val = (approved or "true").strip().lower()
+
+    if val in ("true", "1", "yes"):
         # Public path — only approved ratings.
         return rating_service.list_ratings(db, only_approved=True)
 
-    # approved is False or None → admin-only.
+    # val is "false" or "all" → admin-only.
     if current_admin is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Admin authentication required")
 
-    if approved is False:
-        rows = rating_service.list_ratings(db, only_approved=False)
-        return [r for r in rows if not r["is_approved"]]
-    # approved is None → return all
-    return rating_service.list_ratings(db, only_approved=False)
+    rows = rating_service.list_ratings(db, only_approved=False)
+    if val == "all":
+        return rows
+    # val == "false"
+    return [r for r in rows if not r["is_approved"]]
 
 
 @router.post("/", response_model=RatingResponse, status_code=status.HTTP_201_CREATED)
