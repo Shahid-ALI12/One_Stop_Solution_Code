@@ -11,46 +11,48 @@ import FAQsSection from './components/FAQsSection';
 import ContactSection from './components/ContactSection';
 import Footer from './components/Footer';
 
-// Admin Components & API hooks
+// Admin Components & Data Hooks
 import AdminDashboard from './components/AdminDashboard';
 import AdminLoginModal from './components/AdminLoginModal';
-import { useSiteData, useAdminAuth } from './hooks/useApi';
-import { apiClient } from './api/client';
-import type { Service, Enquiry, Consultation, Rating, PortfolioItem, TeamMember } from './types';
+import { useAdminAuth } from './hooks/useApi';
+import { SERVICES, RATINGS, INITIAL_TEAM_MEMBERS, INITIAL_ENQUIRIES, INITIAL_CONSULTATIONS, INITIAL_SITE_STATS, INITIAL_RATINGS } from './data/mockData';
+import { Service, Enquiry, Consultation, Rating, PortfolioItem, TeamMember } from './types';
 import TeamSection from './components/TeamSection';
 
-// Mock data — used as the initial seed AND as fallback when backend is unreachable.
-// This restores the original "all-data-on-the-public-site" behavior from before
-// the FastAPI backend was wired in.
-import {
-  SERVICES,
-  INITIAL_RATINGS,
-  INITIAL_TEAM_MEMBERS,
-  INITIAL_ENQUIRIES,
-  INITIAL_CONSULTATIONS,
-  INITIAL_SITE_STATS,
-} from './data/mockData';
-
-// Premium UI global wrappers — public site only
-import AuroraBackground from './components/ui/AuroraBackground';
-import CustomCursor from './components/ui/CustomCursor';
-import ScrollProgress from './components/ui/ScrollProgress';
-
 /**
- * SHAPE-ADAPTERS — the existing components expect specific camelCase shapes
- * (e.g. `subServices`, `accentColor`, `imageAsset`). The API client already
- * returns these in the correct shape, but the components import `Service` type
- * from `types.ts` which has identical field names. The cast through `any`
- * below is safe because the API client shape matches the type definitions.
+ * LOCAL PERSISTENCE LAYER
+ * -----------------------
+ * Survives page refresh, hard reload, branch re-sync, and re-deploys.
+ * Without this, every time the backend is unreachable the in-memory state
+ * resets to the mock seed — which wiped any admin edits the user had made.
+ * Now admin edits (and the seeded mock data) persist in localStorage and
+ * are rehydrated on the next page load.
+ *
+ * Versioned with a SCHEMA_KEY so future shape changes can invalidate the cache.
  */
-function asServiceList(s: any[]): Service[] {
-  return s as Service[];
+const PERSIST_VERSION = 'v1';
+const PERSIST_PREFIX = `oss:${PERSIST_VERSION}:`;
+
+function loadPersisted<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(PERSIST_PREFIX + key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    // Defensive: if stored value is an array, ensure it's non-empty before
+    // trusting it (avoid restoring an accidental empty save).
+    if (Array.isArray(parsed) && parsed.length === 0) return fallback;
+    return parsed as T;
+  } catch {
+    return fallback;
+  }
 }
-function asRatingList(r: any[]): Rating[] {
-  return r as Rating[];
-}
-function asTeamList(t: any[]): TeamMember[] {
-  return t as TeamMember[];
+
+function savePersisted<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(PERSIST_PREFIX + key, JSON.stringify(value));
+  } catch {
+    // QuotaExceeded / private mode — silently ignore, in-memory state still works.
+  }
 }
 
 export default function App() {
@@ -62,55 +64,47 @@ export default function App() {
   const [preSelectedService, setPreSelectedService] = useState('');
   const [preSelectedPortfolio, setPreSelectedPortfolio] = useState('');
 
-  // Authentication — backed by backend JWT
+  // Authentication — backed by backend JWT with demo-mode fallback
+  // (any username/password works when the FastAPI backend is unreachable).
   const { isAuthenticated: isAdminAuthenticated, login: doLogin, logout: doLogout, checking } = useAdminAuth();
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
 
-  // All public site data — fetched from backend (falls back to mock when empty)
-  const {
-    services: apiServices,
-    ratings: apiRatings,
-    resources: apiResources,
-    teamMembers: apiTeamMembers,
-    stats: apiStats,
-    loading: siteLoading,
-    refresh: refreshSite,
-  } = useSiteData();
-
-  // Centralized lifted state — seeded with mock data, then overwritten with
-  // real API data ONLY when the backend actually returns something. This way
-  // the public site shows full mock content even when the backend is down,
-  // and admin edits persist in local state across login/logout cycles.
-  const [services, setServices] = useState<Service[]>(() => SERVICES);
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => INITIAL_TEAM_MEMBERS);
-  const [ratings, setRatings] = useState<Rating[]>(() => INITIAL_RATINGS);
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => INITIAL_ENQUIRIES);
-  const [consultations, setConsultations] = useState<Consultation[]>(() => INITIAL_CONSULTATIONS);
-  const [stats, setStats] = useState(() => ({
+  // Centralized Lifted Operational Counters State
+  const [stats, setStats] = useState(() => loadPersisted('stats', {
     clients: INITIAL_SITE_STATS.clients,
     orders: INITIAL_SITE_STATS.orders,
-    countries: INITIAL_SITE_STATS.countries,
-    label: INITIAL_SITE_STATS.label,
+    countries: INITIAL_SITE_STATS.countries
   }));
 
-  // Sync API data → local state, but ONLY when the API actually has data.
-  // Empty arrays / zero stats from a dead backend must NOT wipe the mock seed.
-  useEffect(() => {
-    if (apiServices && apiServices.length > 0) setServices(asServiceList(apiServices));
-  }, [apiServices]);
-  useEffect(() => {
-    if (apiTeamMembers && apiTeamMembers.length > 0) setTeamMembers(asTeamList(apiTeamMembers));
-  }, [apiTeamMembers]);
-  useEffect(() => {
-    if (apiRatings && apiRatings.length > 0) setRatings(asRatingList(apiRatings));
-  }, [apiRatings]);
-  useEffect(() => {
-    if (apiStats && (apiStats.clients > 0 || apiStats.orders > 0 || apiStats.countries > 0)) {
-      setStats(apiStats);
-    }
-  }, [apiStats]);
+  // Centralized Lifted Services List State
+  const [services, setServices] = useState<Service[]>(() => loadPersisted('services', SERVICES));
 
-  // Hash-based admin access — visiting #admin auto-opens the login modal
+  // Centralized Lifted Team Members State
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>(() => loadPersisted('teamMembers', INITIAL_TEAM_MEMBERS));
+
+  // Centralized Lifted Client Reviews State (Seeded with isApproved: true)
+  const [ratings, setRatings] = useState<Rating[]>(() => loadPersisted('ratings', INITIAL_RATINGS));
+
+  // Centralized Enquiries State (Seeded with 2 professional entries)
+  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => loadPersisted('enquiries', INITIAL_ENQUIRIES));
+
+  // Centralized Consultations State (Seeded with 2 initial bookings)
+  const [consultations, setConsultations] = useState<Consultation[]>(() => loadPersisted('consultations', INITIAL_CONSULTATIONS));
+
+  // PERSISTENCE — mirror every state mutation back to localStorage so admin
+  // edits (and the seeded mock data) survive page refresh, branch re-sync,
+  // and re-deploys. This is what stops the public site from "going back" to
+  // an empty state after a sync.
+  useEffect(() => { savePersisted('services', services); }, [services]);
+  useEffect(() => { savePersisted('teamMembers', teamMembers); }, [teamMembers]);
+  useEffect(() => { savePersisted('ratings', ratings); }, [ratings]);
+  useEffect(() => { savePersisted('enquiries', enquiries); }, [enquiries]);
+  useEffect(() => { savePersisted('consultations', consultations); }, [consultations]);
+  useEffect(() => { savePersisted('stats', stats); }, [stats]);
+
+  // Hash-based admin access — visiting #admin auto-opens the login modal.
+  // Works in both unauthenticated and authenticated states (lets the user
+  // jump straight back into the dashboard).
   useEffect(() => {
     const checkAdminHash = () => {
       if (window.location.hash.toLowerCase() === '#admin') {
@@ -124,10 +118,13 @@ export default function App() {
 
   // Scroll spy to highlight active menu section
   useEffect(() => {
+    // If authenticated in admin panel, disable scroll spy to prevent errors
     if (isAdminAuthenticated) return;
+
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 400);
-      const scrollPosition = window.scrollY + 200;
+      const scrollPosition = window.scrollY + 200; // Offset for sticky navbar
+
       const sections = [
         { id: 'hero', element: document.getElementById('hero') },
         { id: 'records', element: document.getElementById('records') },
@@ -137,8 +134,9 @@ export default function App() {
         { id: 'resources', element: document.getElementById('resources') },
         { id: 'team', element: document.getElementById('team') },
         { id: 'faqs', element: document.getElementById('faqs') },
-        { id: 'contact', element: document.getElementById('contact') },
+        { id: 'contact', element: document.getElementById('contact') }
       ];
+
       for (let i = sections.length - 1; i >= 0; i--) {
         const sec = sections[i];
         if (sec.element) {
@@ -150,6 +148,7 @@ export default function App() {
         }
       }
     };
+
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, [isAdminAuthenticated]);
@@ -157,8 +156,10 @@ export default function App() {
   const handleNavigate = (sectionId: string) => {
     const targetElement = document.getElementById(sectionId);
     if (targetElement) {
+      // Offset scroll height to account for sticky navbar
       const yOffset = -80;
       const y = targetElement.getBoundingClientRect().top + window.scrollY + yOffset;
+
       window.scrollTo({ top: y, behavior: 'smooth' });
       setActiveSection(sectionId);
     }
@@ -166,57 +167,14 @@ export default function App() {
 
   const handleOrderNow = (serviceName: string, portfolioTitle?: string) => {
     setPreSelectedService(serviceName);
-    setPreSelectedPortfolio(portfolioTitle || '');
+    if (portfolioTitle) {
+      setPreSelectedPortfolio(portfolioTitle);
+    } else {
+      setPreSelectedPortfolio('');
+    }
+
+    // Scroll smoothly to contact section
     handleNavigate('contact');
-  };
-
-  // Public submission handlers — POST directly to backend
-  const handleAddEnquiry = async (newEnq: any) => {
-    try {
-      await apiClient.createEnquiry({
-        name: newEnq.name,
-        contactMethod: newEnq.contactMethod,
-        contactInfo: newEnq.contactInfo,
-        subject: newEnq.subject,
-        message: newEnq.message,
-        selectedService: newEnq.selectedService,
-        timezone: newEnq.timezone,
-      });
-    } catch (e) {
-      // Surface error to console — UI keeps optimistic add
-      console.error('Failed to submit enquiry', e);
-    }
-  };
-
-  const handleAddConsultation = async (newConsult: any) => {
-    try {
-      await apiClient.createConsultation({
-        name: newConsult.name,
-        email: newConsult.email,
-        country: newConsult.country,
-        selectedDateTime: newConsult.selectedDateTime,
-        timezone: newConsult.timezone,
-        pktTime: newConsult.pktTime,
-      });
-    } catch (e) {
-      console.error('Failed to submit consultation', e);
-    }
-  };
-
-  // Save site-wide stats (admin updates them through AdminDashboard)
-  const handleUpdateStats = async (newStats: any) => {
-    setStats(newStats);
-    try {
-      const updated = await apiClient.updateStats({
-        clients: newStats.clients,
-        orders: newStats.orders,
-        countries: newStats.countries,
-        label: newStats.label,
-      });
-      setStats(updated);
-    } catch (e) {
-      console.error('Failed to save stats', e);
-    }
   };
 
   // While checking existing token, show nothing (avoid flashing public site → admin)
@@ -233,23 +191,17 @@ export default function App() {
     return (
       <AdminDashboard
         onLogout={doLogout}
-        // Pass the current public-site state so admin sees the same data
-        // the public sees (mock seed OR live API data, whichever won).
         enquiries={enquiries}
         consultations={consultations}
         services={services}
         ratings={ratings}
         stats={stats}
         teamMembers={teamMembers}
-        // Wire every update callback back to App.tsx state so admin edits
-        // (add/edit/delete) persist on the public site after logout. The
-        // AdminDashboard still tries the API internally; these callbacks
-        // are the local-source-of-truth fallback.
         onUpdateEnquiries={setEnquiries}
         onUpdateConsultations={setConsultations}
         onUpdateServices={setServices}
         onUpdateRatings={setRatings}
-        onUpdateStats={handleUpdateStats}
+        onUpdateStats={setStats}
         onUpdateTeamMembers={setTeamMembers}
       />
     );
@@ -258,11 +210,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-japandi-bg text-japandi-soot antialiased flex flex-col justify-between selection:bg-japandi-earth/15 selection:text-japandi-earth">
 
-      {/* Premium global UI — public site only */}
-      <AuroraBackground />
-      <CustomCursor />
-      <ScrollProgress />
-
+      {/* Sticky Navbar with double-click hidden login hook */}
       <Navbar
         activeSection={activeSection}
         onNavigate={handleNavigate}
@@ -270,15 +218,23 @@ export default function App() {
         onLogoDoubleClick={() => setIsLoginModalOpen(true)}
       />
 
+      {/* Main Content Sections */}
       <main className="flex-grow">
-        <Hero onExplore={() => handleNavigate('services')} onBook={() => handleNavigate('contact')} />
 
+        {/* 1. Hero Landing Page */}
+        <Hero
+          onExplore={() => handleNavigate('services')}
+          onBook={() => handleNavigate('contact')}
+        />
+
+        {/* 2. Animated Proven Performance Counters (Using reactive stats) */}
         <RecordSection
           initialClients={stats.clients}
           initialOrders={stats.orders}
           initialCountries={stats.countries}
         />
 
+        {/* 3. Services, Sub-options & Portfolio Galleries */}
         <ServicesSection
           selectedServiceId={selectedServiceId}
           setSelectedServiceId={setSelectedServiceId}
@@ -286,27 +242,34 @@ export default function App() {
           servicesList={services}
         />
 
+        {/* 5. Dynamic Filterable Client Reviews */}
         <RatingsSection ratingsList={ratings} />
 
-        {/* ResourceHubSection currently imports RESOURCES internally; pass nothing extra */}
+        {/* 6. Downloadable Resources Hub & search queries */}
         <ResourceHubSection />
 
+        {/* 7. Team Members Grid & Corner Active Lights */}
         <TeamSection teamList={teamMembers} />
 
+        {/* 8. Collapsible Common Accordion FAQs */}
         <FAQsSection />
 
+        {/* 9. Contact Queries & Dual Timezone PKT Booking */}
         <ContactSection
           preSelectedService={preSelectedService}
           preSelectedPortfolio={preSelectedPortfolio}
           setPreSelectedService={setPreSelectedService}
           setPreSelectedPortfolio={setPreSelectedPortfolio}
-          onAddEnquiry={handleAddEnquiry}
-          onAddConsultation={handleAddConsultation}
+          onAddEnquiry={(newEnq) => setEnquiries(prev => [newEnq, ...prev])}
+          onAddConsultation={(newConsult) => setConsultations(prev => [newConsult, ...prev])}
         />
+
       </main>
 
+      {/* Corporate footer block */}
       <Footer onNavigate={handleNavigate} />
 
+      {/* Hidden Admin Login Modal */}
       <AdminLoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
@@ -324,6 +287,7 @@ export default function App() {
         }}
       />
 
+      {/* Floating Back to Top Button */}
       <AnimatePresence>
         {showBackToTop && (
           <motion.button
@@ -341,6 +305,7 @@ export default function App() {
           </motion.button>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
