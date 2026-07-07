@@ -142,21 +142,24 @@ export default function ServicesSection({
                        (id === 'catch-up-bookkeeping') ? 'catchup' :
                        (id === 'tax-services') ? 'tax' : id;
 
-    // If servicesList is provided, search there first!
-    if (servicesList) {
-      const foundInList = servicesList.find(s => s.id === resolvedId);
+    // Treat empty array as "not provided" — fall back to SERVICES
+    const hasList = servicesList && servicesList.length > 0;
+
+    // If servicesList has data, search there first!
+    if (hasList) {
+      const foundInList = servicesList!.find(s => s.id === resolvedId);
       if (foundInList) return foundInList;
     }
 
-    if (resolvedId === 'catchup' && !servicesList) {
+    if (resolvedId === 'catchup' && !hasList) {
       return CATCHUP_SERVICE;
     }
-    if (resolvedId === 'tax' && !servicesList) {
+    if (resolvedId === 'tax' && !hasList) {
       return TAX_SERVICE;
     }
-    const found = (servicesList || SERVICES).find(s => s.id === resolvedId);
+    const found = (hasList ? servicesList! : SERVICES).find(s => s.id === resolvedId);
     if (found) {
-      if (resolvedId === 'bookkeeping' && !servicesList) {
+      if (resolvedId === 'bookkeeping' && !hasList) {
         return {
           ...found,
           id: 'bookkeeping',
@@ -167,13 +170,29 @@ export default function ServicesSection({
       return found;
     }
     
-    // Fallback: bookkeeping
-    const bk = (servicesList || SERVICES).find(s => s.id === 'bookkeeping') || (servicesList || SERVICES)[0];
+    // Fallback: bookkeeping (or first available)
+    const pool = hasList ? servicesList! : SERVICES;
+    const bk = pool.find(s => s.id === 'bookkeeping') || pool[0] || SERVICES[0];
+    if (!bk) {
+      // Absolute last-resort fallback — should never reach here if SERVICES has data
+      return {
+        id: 'bookkeeping',
+        name: servicesData[0]?.heading || 'Bookkeeping',
+        shortDesc: servicesData[0]?.summary || '',
+        accentColor: '',
+        textColor: '',
+        tailwindColor: '',
+        slug: 'bookkeeping',
+        subServices: [],
+        overallDescription: '',
+        portfolio: [],
+      } as Service;
+    }
     return {
       ...bk,
       id: 'bookkeeping',
-      name: servicesList ? bk.name : servicesData[0].heading,
-      shortDesc: servicesList ? bk.shortDesc : servicesData[0].summary
+      name: hasList ? bk.name : servicesData[0].heading,
+      shortDesc: hasList ? bk.shortDesc : servicesData[0].summary
     };
   };
 
@@ -181,12 +200,14 @@ export default function ServicesSection({
     if (servicesList && servicesList.length > 0) {
       return servicesList[0];
     }
+    // Fall back to mock SERVICES data when API list is empty/missing
     const bk = SERVICES.find(s => s.id === 'bookkeeping') || SERVICES[0];
+    if (!bk) return null;
     return {
       ...bk,
       id: 'bookkeeping',
-      name: servicesData[0].heading,
-      shortDesc: servicesData[0].summary
+      name: servicesData[0]?.heading || bk.name,
+      shortDesc: servicesData[0]?.summary || bk.shortDesc
     };
   });
 
