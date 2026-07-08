@@ -7,8 +7,9 @@ import {
   StarHalf, 
   BarChart3, 
   LogOut, 
-  X, 
-  Check, 
+  X,
+  Menu,
+  Check,
   Plus, 
   Trash2, 
   Eye, 
@@ -145,6 +146,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
 
   // 1. Sidebar tab view state
   const [activeTab, setActiveTab] = useState<ActiveTab>('analytics');
+  const [sidebarOpen, setSidebarOpen] = useState(false); // mobile sidebar toggle
 
   // ==========================================
   // VIEW A STATES & COMPARTMENTS (Analytics)
@@ -824,8 +826,33 @@ export default function AdminDashboard(props: AdminDashboardProps) {
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] rounded-full bg-indigo-600/10 blur-[130px] pointer-events-none" />
       <div className="absolute bottom-[-15%] right-[-10%] w-[600px] h-[600px] rounded-full bg-purple-600/10 blur-[130px] pointer-events-none" />
 
+      {/* Mobile sidebar overlay (click to close) */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-30"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Persistence Left Glass Sidebar Layout */}
-      <aside className="w-80 bg-slate-900/60 backdrop-blur-2xl border-r border-white/5 p-6 flex flex-col justify-between relative z-10 shrink-0">
+      <aside
+        className={`w-72 sm:w-80 bg-slate-900/95 backdrop-blur-2xl border-r border-white/5 p-5 sm:p-6 flex flex-col justify-between relative z-40 shrink-0 fixed lg:static inset-y-0 left-0 transform transition-transform duration-300 ease-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+        }`}
+      >
+        {/* Mobile close button (top-right of sidebar) */}
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="lg:hidden absolute top-4 right-4 p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors z-50"
+          aria-label="Close menu"
+        >
+          <X className="w-4 h-4" />
+        </button>
         <div>
           {/* ← Exit Workspace anchor link at peak */}
           <button
@@ -866,7 +893,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as ActiveTab)}
+                  onClick={() => { setActiveTab(tab.id as ActiveTab); setSidebarOpen(false); }}
                   className={`w-full px-4 py-3.5 rounded-2xl text-xs font-bold flex items-center space-x-3.5 transition-all duration-300 relative ${
                     isActive
                       ? 'bg-gradient-to-r from-indigo-500/15 to-indigo-500/5 text-white border-l-4 border-indigo-500 pl-3.5 shadow-md border border-white/10'
@@ -906,10 +933,25 @@ export default function AdminDashboard(props: AdminDashboardProps) {
       </aside>
 
       {/* Main Viewport Workspace Container */}
-      <main className="admin-scroll flex-1 overflow-y-auto p-10 relative z-10">
-        
+      <main className="admin-scroll flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 relative z-10">
+
+        {/* Mobile top bar with hamburger */}
+        <div className="lg:hidden flex items-center justify-between mb-4 pb-3 border-b border-white/5">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 transition-colors"
+            aria-label="Open menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-indigo-400" />
+            <span className="text-xs font-bold text-white uppercase tracking-wider">OneStop Admin</span>
+          </div>
+        </div>
+
         {/* Main Workstation Header */}
-        <header className="flex items-center justify-between mb-10 pb-6 border-b border-white/5">
+        <header className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6 lg:mb-10 pb-4 lg:pb-6 border-b border-white/5">
           <div>
             <div className="flex items-center gap-2.5">
               <span className="text-[10px] font-mono font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-md uppercase tracking-wider">
@@ -918,14 +960,14 @@ export default function AdminDashboard(props: AdminDashboardProps) {
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
               <span className="text-xs text-slate-500 font-mono">UTC-5 Terminal synced</span>
             </div>
-            <h1 className="text-3xl font-black text-white mt-2 tracking-tight">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-white mt-2 tracking-tight">
               {activeTab === 'analytics' && 'Dashboard Analytics & System Overrides'}
               {activeTab === 'services' && 'Services & Dynamic Portfolio Workspace'}
               {activeTab === 'reviews' && 'Client Feedback Hub & Testimony Control'}
               {activeTab === 'team' && 'Team Badges & Corporate Employee Onboarding'}
               {activeTab === 'contacts' && 'Contact Channels & PKT Booking Translation'}
             </h1>
-            <p className="text-sm text-slate-400 mt-1">
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
               {activeTab === 'analytics' && 'Review client geographic coverage, live SVG conversion shares, and star metrics.'}
               {activeTab === 'services' && 'Inline text area editing of titles, dashboard catalogs, and Upwork portfolios rearrangement.'}
               {activeTab === 'reviews' && 'Moderate customer testimonials, flag overlays, and custom priority sorting.'}
@@ -935,7 +977,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
           </div>
 
           {/* Server Sync telemetry widget */}
-          <div className="flex items-center space-x-3.5 bg-slate-900/60 px-5 py-3 rounded-2xl border border-white/5">
+          <div className="flex items-center space-x-3.5 bg-slate-900/60 px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl border border-white/5 self-start lg:self-auto">
             <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <div className="text-left font-mono">
               <div className="text-[10px] font-bold text-white leading-none">AUTO-ECHO ACTIVE</div>
@@ -971,7 +1013,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
             {/* VIEW B: SERVICES & PORTFOLIOS WORKSPACE (Two-Column Builder)   */}
             {/* ============================================================== */}
             {activeTab === 'services' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 items-start">
                 
                 {/* Left Column: Stacked list of existing services & creation anchor */}
                 <div className="space-y-4">
@@ -2010,7 +2052,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
               <div className="space-y-8">
                 
                 {/* 1. Query Routing Management & Social Networks */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
                   
                   {/* Channels active roster */}
                   <div className="bg-slate-900/40 backdrop-blur-xl border border-white/10 rounded-3xl p-6 shadow-xl flex flex-col justify-between">
@@ -2209,7 +2251,7 @@ export default function AdminDashboard(props: AdminDashboardProps) {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 items-center">
                     
                     {/* Left: Input Selection simulator */}
                     <div className="space-y-4 bg-slate-950/60 p-5 rounded-2xl border border-white/5">
