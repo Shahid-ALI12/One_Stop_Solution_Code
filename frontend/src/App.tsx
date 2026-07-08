@@ -31,10 +31,7 @@ import {
   INITIAL_SITE_STATS,
 } from './data/mockData';
 
-// Premium UI global wrappers — public site only
-import AuroraBackground from './components/ui/AuroraBackground';
-import CustomCursor from './components/ui/CustomCursor';
-import ScrollProgress from './components/ui/ScrollProgress';
+// Premium UI global wrappers — public site only (disabled for performance)
 
 /**
  * SHAPE-ADAPTERS — the existing components expect specific camelCase shapes
@@ -258,10 +255,6 @@ export default function App() {
   return (
     <div className="min-h-screen bg-japandi-bg text-japandi-soot antialiased flex flex-col justify-between selection:bg-japandi-earth/15 selection:text-japandi-earth">
 
-      {/* Premium global UI — public site only */}
-      <AuroraBackground />
-      <CustomCursor />
-      <ScrollProgress />
 
       <Navbar
         activeSection={activeSection}

@@ -219,11 +219,11 @@ export default function Navbar({ activeSection, onNavigate, onSelectService, onL
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 15 }}
                           transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                          className="absolute left-1/2 -translate-x-[35%] mt-3 w-[720px] bg-white/65 backdrop-blur-2xl border border-white/45 rounded-3xl shadow-xl overflow-hidden z-50 p-6 grid grid-cols-12 gap-6 shadow-slate-900/10"
+                          className="absolute left-1/2 -translate-x-[35%] mt-3 w-[720px] bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden z-50 p-6 grid grid-cols-12 gap-6 shadow-slate-900/10"
                         >
                           {/* Services List (col-span-8) */}
                           <div className="col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="col-span-2 pb-2 border-b border-white/35">
+                            <div className="col-span-2 pb-2 border-b border-slate-100">
                               <span className="text-[10px] font-mono font-bold text-indigo-600 uppercase tracking-widest block">
                                 Core Capabilities Catalog
                               </span>
@@ -235,7 +235,7 @@ export default function Navbar({ activeSection, onNavigate, onSelectService, onL
                                 <button
                                   key={srv.id}
                                   onClick={() => handleServiceClick(srv.id)}
-                                  className="flex items-start space-x-3 p-2.5 rounded-2xl hover:bg-white/55 border border-transparent hover:border-white/35 text-left transition-all cursor-pointer group/item duration-300"
+                                  className="flex items-start space-x-3 p-2.5 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-100 text-left transition-all cursor-pointer group/item duration-300"
                                 >
                                   <div className={`w-9 h-9 rounded-xl border flex items-center justify-center shrink-0 shadow-sm ${srv.color}`}>
                                     <ServiceIcon className="w-4 h-4 group-hover/item:scale-105 transition-transform duration-300" />
@@ -254,7 +254,7 @@ export default function Navbar({ activeSection, onNavigate, onSelectService, onL
                           </div>
 
                           {/* Promo CTA Banner (col-span-4) */}
-                          <div className="col-span-4 bg-white/35 border border-white/25 p-5 rounded-2xl flex flex-col justify-between">
+                          <div className="col-span-4 bg-slate-50 border border-slate-100 p-5 rounded-2xl flex flex-col justify-between">
                             <div>
                               <div className="inline-flex items-center space-x-1 px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-full text-[9px] font-mono font-bold uppercase tracking-wider mb-3 shadow-sm">
                                 <Sparkles className="w-3 h-3 text-indigo-600 animate-pulse" />
